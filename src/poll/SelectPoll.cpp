@@ -111,7 +111,7 @@ KMError SelectPoll::registerFd(SOCKET_FD fd, KMEvent events, IOCallback cb)
 
 KMError SelectPoll::unregisterFd(SOCKET_FD fd)
 {
-    int max_fd = int(poll_items_.size() - 1);
+    auto max_fd = SOCKET_FD(poll_items_.size() - 1);
     KUMA_INFOTRACE("SelectPoll::unregisterFd, fd="<<fd<<", max_fd="<<max_fd);
     if (fd < 0 || fd > max_fd) {
         KUMA_WARNTRACE("SelectPoll::unregisterFd, failed, max_fd=" << max_fd);
@@ -138,7 +138,7 @@ KMError SelectPoll::unregisterFd(SOCKET_FD fd)
 
 KMError SelectPoll::updateFd(SOCKET_FD fd, KMEvent events)
 {
-    int max_fd = int(poll_items_.size() - 1);
+    auto max_fd = SOCKET_FD(poll_items_.size() - 1);
     if (fd < 0 || -1 == max_fd || fd > max_fd) {
         KUMA_WARNTRACE("SelectPoll::updateFd, failed, fd="<<fd<<", max_fd="<<max_fd);
         return KMError::INVALID_PARAM;
@@ -148,7 +148,7 @@ KMError SelectPoll::updateFd(SOCKET_FD fd, KMEvent events)
         return KMError::INVALID_PARAM;
     }
     int idx = poll_items_[fd].idx;
-    if (idx < 0 || idx >= poll_fds_.size()) {
+    if (idx < 0 || idx >= (int)poll_fds_.size()) {
         KUMA_WARNTRACE("SelectPoll::updateFd, failed, index="<<idx);
         return KMError::INVALID_STATE;
     }
