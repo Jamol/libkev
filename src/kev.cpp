@@ -157,9 +157,14 @@ EventLoop::Impl* EventLoop::pimpl()
     return pimpl_;
 }
 
-KMError EventLoop::sync(Task task)
+bool EventLoop::inSameThread() const
 {
-    return pimpl_->sync(std::move(task));
+    return pimpl_->inSameThread();
+}
+
+KMError EventLoop::invoke(Task task)
+{
+    return pimpl_->invoke(std::move(task));
 }
 
 KMError EventLoop::async(Task task, Token *token)

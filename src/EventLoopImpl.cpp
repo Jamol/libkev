@@ -115,7 +115,7 @@ KMError EventLoop::Impl::unregisterFd(SOCKET_FD fd, bool close_fd)
         }
         return ret;
     } else {
-        auto ret = sync([=] {
+        auto ret = invoke([=] {
             poll_->unregisterFd(fd);
             if(close_fd) {
                 closeFd(fd);
@@ -299,7 +299,7 @@ KMError EventLoop::Impl::removeTask(EventLoopToken *token)
     return KMError::NOERR;
 }
 
-KMError EventLoop::Impl::sync(Task task)
+KMError EventLoop::Impl::invoke(Task task)
 {
     if(inSameThread()) {
         task();

@@ -874,6 +874,7 @@ void kuma_fini()
     WSACleanup();
 }
 
+/*
 BOOL WINAPI DllMain(HINSTANCE module_handle, DWORD reason_for_call, LPVOID reserved)
 {
     switch (reason_for_call)
@@ -888,4 +889,5 @@ BOOL WINAPI DllMain(HINSTANCE module_handle, DWORD reason_for_call, LPVOID reser
     }
     return TRUE;
 }
+*/
 #endif

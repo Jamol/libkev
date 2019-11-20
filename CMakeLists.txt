@@ -117,7 +117,11 @@ endif ()
 
 
 if (CMAKE_SYSTEM_NAME MATCHES "Windows")
-    set(LIBRARY_OUTPUT_PATH "${PROJ_ROOT_DIR}/lib/windows/${PROCESSOR_ARCH}/${CMAKE_BUILD_TYPE}")
+    if (ARCH_64)
+        set(LIBRARY_OUTPUT_PATH "${PROJ_ROOT_DIR}/lib/windows/${PROCESSOR_ARCH}/${CMAKE_BUILD_TYPE}")
+    else ()
+        set(LIBRARY_OUTPUT_PATH "${PROJ_ROOT_DIR}/lib/windows/Win32/${CMAKE_BUILD_TYPE}")
+    endif ()
     
 elseif (CMAKE_SYSTEM_NAME MATCHES "Darwin")
     if (CMAKE_TARGET_SYSTEM STREQUAL "ios")
