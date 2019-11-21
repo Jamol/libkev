@@ -113,23 +113,23 @@ public:
     KMError removeTask(EventLoopToken *token);
 
     template <class Callable>
-    auto sync(Callable &&f)
+    auto invoke(Callable &&f)
     {
         if (inSameThread()) {
             return f();
         }
         KMError err;
-        return SyncCall<decltype(f()), Callable>::call(std::forward<Callable>(f), this, err);
+        return Invoker<decltype(f()), Callable>::sync(std::forward<Callable>(f), this, err);
     }
     template <class Callable>
-    auto sync(Callable &&f, KMError &err)
+    auto invoke(Callable &&f, KMError &err)
     {
         if (inSameThread()) {
             return f();
         }
-        return SyncCall<decltype(f()), Callable>::call(std::forward<Callable>(f), this, err);
+        return Invoker<decltype(f()), Callable>::sync(std::forward<Callable>(f), this, err);
     }
-    KMError invoke(Task task); // sync call
+    KMError sync(Task task);
     KMError async(Task task, EventLoopToken *token=nullptr);
     KMError post(Task task, EventLoopToken *token=nullptr);
     void loopOnce(uint32_t max_wait_ms);
@@ -140,26 +140,6 @@ public:
 
     void appendPendingObject(PendingObject *obj);
     void removePendingObject(PendingObject *obj);
-
-protected:
-    template <typename ReturnType, typename Callable>
-    struct SyncCall
-    {
-        static ReturnType call(Callable &&f, Impl *loop, KMError &err) {
-            ReturnType retval;
-            auto task_sync = [&] { retval = f(); };
-            err = loop->invoke(std::move(task_sync));
-            return retval;
-        }
-    };
-
-    template <typename Callable>
-    struct SyncCall<void, Callable>
-    {
-        static void call(Callable &&f, Impl *loop, KMError &err) {
-            err = loop->invoke(std::forward<Callable>(f));
-        }
-    };
 
 protected:
     void processTasks();

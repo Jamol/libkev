@@ -96,13 +96,13 @@ public:
      * @return return the result of f()
      */
     template<typename Callable>
-    auto sync(Callable &&f)
+    auto invoke(Callable &&f)
     {
         if (inSameThread()) {
             return f();
         }
         KMError err;
-        return SyncCall<decltype(f()), Callable>::call(std::forward<Callable>(f), this, err);
+        return Invoker<decltype(f()), Callable>::sync(std::forward<Callable>(f), this, err);
     }
 
     /* run the task in loop thread and wait untill task is executed.
@@ -115,12 +115,12 @@ public:
      * @return return the result of f()
      */
     template<typename Callable>
-    auto sync(Callable &&f, KMError &err)
+    auto invoke(Callable &&f, KMError &err)
     {
         if (inSameThread()) {
             return f();
         }
-        return SyncCall<decltype(f()), Callable>::call(std::forward<Callable>(f), this, err);
+        return Invoker<decltype(f()), Callable>::sync(std::forward<Callable>(f), this, err);
     }
 
     /* run the task in loop thread and wait untill task is executed.
@@ -129,7 +129,7 @@ public:
      *
      * @param task the task to be executed. it will always be executed when call success
      */
-    KMError invoke(Task task);
+    KMError sync(Task task);
     
     /* run the task in loop thread.
      * the task will be executed at once if called on loop thread
@@ -165,21 +165,23 @@ public:
 
 protected:
     template <typename ReturnType, typename Callable>
-    struct SyncCall
+    struct Invoker
     {
-        static ReturnType call(Callable &&f, EventLoop *loop, KMError &err) {
+        template<typename LoopType>
+        static ReturnType sync(Callable &&f, LoopType *loop, KMError &err) {
             ReturnType retval;
             auto task_sync = [&] { retval = f(); };
-            err = loop->invoke(std::move(task_sync));
+            err = loop->sync(std::move(task_sync));
             return retval;
         }
     };
 
     template <typename Callable>
-    struct SyncCall<void, Callable>
+    struct Invoker<void, Callable>
     {
-        static void call(Callable &&f, EventLoop *loop, KMError &err) {
-            err = loop->invoke(std::forward<Callable>(f));
+        template<typename LoopType>
+        static void sync(Callable &&f, LoopType *loop, KMError &err) {
+            err = loop->sync(std::forward<Callable>(f));
         }
     };
 
