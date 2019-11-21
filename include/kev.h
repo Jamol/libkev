@@ -112,7 +112,7 @@ public:
      *
      * @return return the result of f()
      */
-    template<typename F, std::enable_if_t<!std::is_same<decltype((*(F*)0)()), void>{}, int> = 0>
+    template<typename F, std::enable_if_t<!std::is_same<decltype(std::declval<F>()()), void>{}, int> = 0>
     auto invoke(F &&f, KMError &err)
     {
         static_assert(!std::is_same<decltype(f()), void>{}, "is void");
@@ -126,7 +126,7 @@ public:
         return retval;
     }
 
-    template<typename F, std::enable_if_t<std::is_same<decltype((*(F*)0)()), void>{}, int> = 0>
+    template<typename F, std::enable_if_t<std::is_same<decltype(std::declval<F>()()), void>{}, int> = 0>
     void invoke(F &&f, KMError &err)
     {
         static_assert(std::is_same<decltype(f()), void>{}, "not void");
