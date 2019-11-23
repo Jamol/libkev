@@ -6,6 +6,7 @@ an event loop from project kuma
 #include "kev.h"
 
 #include <thread>
+#include <memory>
 
 using namespace kuma;
 
@@ -42,6 +43,23 @@ int main(int argc, const char * argv[])
     
     auto ret = run_loop.invoke([] { printf ("loop invoke\n"); return 88; });
     printf("ret=%d\n", ret);
+    
+    auto int_ptr = std::make_unique<int>(123);
+    
+    ret = run_loop.invoke([p=std::move(int_ptr)] {
+        return *p;
+    });
+    printf("move-only ret=%d\n", ret);
+    
+    int_ptr = std::make_unique<int>(456);
+    run_loop.sync([p=std::move(int_ptr)] {
+        printf("sync: move-only, i=%d\n", *p);
+    });
+    
+    int_ptr = std::make_unique<int>(789);
+    run_loop.async([p=std::move(int_ptr)] {
+        printf("async: move-only, i=%d\n", *p);
+    });
     
     run_loop.post(foo);
     
