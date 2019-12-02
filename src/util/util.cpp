@@ -890,4 +890,6 @@ BOOL WINAPI DllMain(HINSTANCE module_handle, DWORD reason_for_call, LPVOID reser
     return TRUE;
 }
 */
+
+#pragma comment(lib, "ws2_32.lib")
 #endif
