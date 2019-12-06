@@ -1,5 +1,17 @@
 # libkev
-an event loop from project kuma
+libkev is a cross-platform C++(C++14) event loop from project [kuma](https://github.com/Jamol/kuma), the supported platforms include windows/mac/iOS/linux/android
+
+## build
+CMake is the supported build system
+
+#### requirements
+- A conforming C++14 compiler
+- CMake v3.5 or newer
+
+build command: (replace your_os to one of windows/mac/ios/linux/android)
+```
+$ python ./bld/your_os/build_your_os.py
+```
 
 ## example
 ```

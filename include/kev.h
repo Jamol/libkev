@@ -53,6 +53,8 @@ public:
         
     private:
         Impl* pimpl_;
+
+        friend class EventLoop;
     };
     
 public:
