@@ -233,10 +233,8 @@ private:
     Impl* pimpl_;
 };
 
-using TraceFunc = std::function<void(int, const char*)>; // (level, msg)
+using TraceFunc = void(*)(int, const char*); // (level, msg)
 
-KUMA_API void init(const char *path = nullptr);
-KUMA_API void fini();
 KUMA_API void setTraceFunc(TraceFunc func);
 
 KUMA_NS_END
