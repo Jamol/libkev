@@ -79,7 +79,7 @@ public:
     
     PollType getPollType() const;
     bool isPollLT() const; // level trigger
-
+    
 public:
     bool inSameThread() const;
     
@@ -233,8 +233,9 @@ private:
     Impl* pimpl_;
 };
 
-using TraceFunc = void(*)(int, const char*); // (level, msg)
 
+// msg is null-terminated and msg_len doesn't include 0
+using TraceFunc = void(*)(int level, const char* msg, size_t msg_len);
 KUMA_API void setTraceFunc(TraceFunc func);
 
 KUMA_NS_END
