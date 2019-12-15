@@ -59,7 +59,12 @@ public:
     
 public:
     EventLoop(PollType poll_type = PollType::NONE);
+    EventLoop(const EventLoop &) = delete;
+    EventLoop(EventLoop &&other);
     ~EventLoop();
+    
+    EventLoop& operator=(const EventLoop &) = delete;
+    EventLoop& operator=(EventLoop &&other);
     
 public:
     bool init();
@@ -208,7 +213,12 @@ public:
     using TimerCallback = std::function<void(void)>;
     
     Timer(EventLoop *loop);
+    Timer(const Timer &) = delete;
+    Timer(Timer &&other);
     ~Timer();
+    
+    Timer& operator=(const Timer &) = delete;
+    Timer& operator=(Timer &&other);
     
     /**
      * Schedule the timer. This API is thread-safe
@@ -234,9 +244,9 @@ private:
 };
 
 
-// msg is null-terminated and msg_len doesn't include 0
-using TraceFunc = void(*)(int level, const char* msg, size_t msg_len);
-KUMA_API void setTraceFunc(TraceFunc func);
+// msg is null-terminated and msg_len doesn't include '\0'
+using LogCallback = void(*)(int level, const char* msg, size_t msg_len);
+KUMA_API void setLogCallback(LogCallback cb);
 
 KUMA_NS_END
 

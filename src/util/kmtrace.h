@@ -62,7 +62,7 @@ const int TRACE_LEVEL_MAX = TRACE_LEVEL_VERBOS;
 void traceWrite(int level, const std::string &msg);
 void traceWrite(int level, std::string &&msg);
 
-// msg is null-terminated and msg_len doesn't include 0
+// msg is null-terminated and msg_len doesn't include '\0'
 using TraceFunc = void(*)(int level, const char* msg, size_t msg_len);
 void setTraceFunc(TraceFunc func);
 void setTraceLevel(int level);

@@ -22,6 +22,7 @@
 #include "kev.h"
 #include "EventLoopImpl.h"
 #include "TimerManager.h"
+#include "util/kmtrace.h"
 
 KUMA_NS_BEGIN
 
@@ -95,9 +96,28 @@ EventLoop::EventLoop(PollType poll_type)
     
 }
 
+EventLoop::EventLoop(EventLoop &&other)
+: pimpl_(other.pimpl_)
+{
+    other.pimpl_ = nullptr;
+}
+
 EventLoop::~EventLoop()
 {
     EventLoopHelper::destroy(pimpl_);
+}
+
+EventLoop& EventLoop::operator=(EventLoop &&other)
+{
+    if (this != &other) {
+        if (pimpl_) {
+            EventLoopHelper::destroy(pimpl_);
+        }
+        pimpl_ = other.pimpl_;
+        other.pimpl_ = nullptr;
+    }
+    
+    return *this;
 }
 
 bool EventLoop::init()
@@ -242,9 +262,28 @@ Timer::Timer(EventLoop* loop)
     
 }
 
+Timer::Timer(Timer &&other)
+: pimpl_(other.pimpl_)
+{
+    other.pimpl_ = nullptr;
+}
+
 Timer::~Timer()
 {
     delete pimpl_;
+}
+
+Timer& Timer::operator=(Timer &&other)
+{
+    if (this != &other) {
+        if (pimpl_) {
+            delete pimpl_;
+        }
+        pimpl_ = other.pimpl_;
+        other.pimpl_ = nullptr;
+    }
+    
+    return *this;
 }
 
 bool Timer::schedule(uint32_t delay_ms, TimerMode mode, TimerCallback cb)
@@ -260,6 +299,11 @@ void Timer::cancel()
 Timer::Impl* Timer::pimpl()
 {
     return pimpl_;
+}
+
+void setLogCallback(LogCallback cb)
+{
+    setTraceFunc(cb);
 }
 
 KUMA_NS_END
