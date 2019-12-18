@@ -197,3 +197,6 @@ FakesAssemblies/
 xcuserdata
 xcshareddata
 obj
+
+out
+lib
