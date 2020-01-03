@@ -44,7 +44,7 @@ struct sockaddr;
 KUMA_NS_BEGIN
 
 #ifdef KUMA_OS_WIN
-# define snprintf       _snprintf
+# define snprintf(d, s, f, ...) _snprintf_s(d, s, _TRUNCATE, f, ##__VA_ARGS__)
 # define vsnprintf      _vsnprintf
 # define strcasecmp     _stricmp
 # define strncasecmp    _strnicmp
