@@ -68,12 +68,6 @@ KUMA_NS_BEGIN
 
 std::atomic<long> KMObject::objIdSeed_{0};
 
-#ifdef KUMA_OS_WIN
-#define SNPRINTF(d, dl, fmt, ...)    _snprintf_s(d, dl, _TRUNCATE, fmt, ##__VA_ARGS__)
-#else
-#define SNPRINTF    snprintf
-#endif
-
 enum{
     KM_RESOLVE_IPV0    = 0,
     KM_RESOLVE_IPV4    = 1,
@@ -299,7 +293,7 @@ extern "C" int km_set_sock_addr(const char* addr, unsigned short port,
     if(!addr && hints) {
         hints->ai_flags |= AI_PASSIVE;
     }
-    SNPRINTF(service, sizeof(service)-1, "%d", port);
+    snprintf(service, sizeof(service)-1, "%d", port);
     auto ret = km_getaddrinfo(addr, service, hints, &ai);
     if(ret != 0 || !ai) {
         if(ai) km_freeaddrinfo(ai);

@@ -44,8 +44,8 @@ struct sockaddr;
 KUMA_NS_BEGIN
 
 #ifdef KUMA_OS_WIN
-# define snprintf(d, s, f, ...) _snprintf_s(d, s, _TRUNCATE, f, ##__VA_ARGS__)
-# define vsnprintf      _vsnprintf
+# define snprintf(d, dl, fmt, ...) _snprintf_s(d, dl, _TRUNCATE, fmt, ##__VA_ARGS__)
+# define vsnprintf(d, dl, fmt, ...) _vsnprintf_s(d, dl, _TRUNCATE, fmt, ##__VA_ARGS__)
 # define strcasecmp     _stricmp
 # define strncasecmp    _strnicmp
 # define getCurrentThreadId() GetCurrentThreadId()
