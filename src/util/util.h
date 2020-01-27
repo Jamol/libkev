@@ -64,7 +64,13 @@ using LPFN_CANCELIOEX = BOOL(WINAPI*)(HANDLE, LPOVERLAPPED);
 # define PATH_SEPARATOR '\\'
 #else
 # define PATH_SEPARATOR '/'
-# define strncpy_s(d, dl, s, c) strncpy(d, s, (std::min)(dl - 1, c))
+# define strncpy_s(d, dl, s, c) \
+    do { \
+        if (0 == dl) break; \
+        size_t sz = (dl - 1) > c ? c : (dl - 1); \
+        strncpy(d, s, sz); \
+        d[sz] = '\0'; \
+    } while(0)
 #endif
 
 #ifndef TICK_COUNT_TYPE
