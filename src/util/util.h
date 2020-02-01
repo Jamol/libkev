@@ -185,17 +185,23 @@ inline uint16_t decode_u16(const uint8_t *src)
 
 inline void encode_u32(uint8_t *dst, uint32_t u)
 {
-    dst[0] = u >> 24, dst[1] = u >> 16, dst[2] = u >> 8, dst[3] = u;
+    dst[0] = u >> 24;
+    dst[1] = u >> 16;
+    dst[2] = u >> 8;
+    dst[3] = u;
 }
 
 inline void encode_u24(uint8_t *dst, uint32_t u)
 {
-    dst[0] = u >> 16, dst[1] = u >> 8, dst[2] = u;
+    dst[0] = u >> 16;
+    dst[1] = u >> 8;
+    dst[2] = u;
 }
 
 inline void encode_u16(uint8_t *dst, uint32_t u)
 {
-    dst[0] = u >> 8, dst[1] = u;
+    dst[0] = u >> 8;
+    dst[1] = u;
 }
 
 int generateRandomBytes(uint8_t *buf, int len);

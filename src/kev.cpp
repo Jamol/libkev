@@ -97,9 +97,9 @@ EventLoop::EventLoop(PollType poll_type)
 }
 
 EventLoop::EventLoop(EventLoop &&other)
-: pimpl_(other.pimpl_)
+: pimpl_(std::exchange(other.pimpl_, nullptr))
 {
-    other.pimpl_ = nullptr;
+    
 }
 
 EventLoop::~EventLoop()
@@ -113,8 +113,7 @@ EventLoop& EventLoop::operator=(EventLoop &&other)
         if (pimpl_) {
             EventLoopHelper::destroy(pimpl_);
         }
-        pimpl_ = other.pimpl_;
-        other.pimpl_ = nullptr;
+        pimpl_ = std::exchange(other.pimpl_, nullptr);
     }
     
     return *this;
@@ -219,9 +218,9 @@ EventLoop::Token::Token()
 }
 
 EventLoop::Token::Token(Token &&other)
-: pimpl_(other.pimpl_)
+: pimpl_(std::exchange(other.pimpl_, nullptr))
 {
-    other.pimpl_ = nullptr;
+    
 }
 
 EventLoop::Token::~Token()
@@ -235,8 +234,7 @@ EventLoop::Token& EventLoop::Token::operator=(Token &&other)
         if (pimpl_) {
             delete pimpl_;
         }
-        pimpl_ = other.pimpl_;
-        other.pimpl_ = nullptr;
+        pimpl_ = std::exchange(other.pimpl_, nullptr);
     }
     return *this;
 }
@@ -263,9 +261,9 @@ Timer::Timer(EventLoop* loop)
 }
 
 Timer::Timer(Timer &&other)
-: pimpl_(other.pimpl_)
+: pimpl_(std::exchange(other.pimpl_, nullptr))
 {
-    other.pimpl_ = nullptr;
+    
 }
 
 Timer::~Timer()
@@ -279,8 +277,7 @@ Timer& Timer::operator=(Timer &&other)
         if (pimpl_) {
             delete pimpl_;
         }
-        pimpl_ = other.pimpl_;
-        other.pimpl_ = nullptr;
+        pimpl_ = std::exchange(other.pimpl_, nullptr);
     }
     
     return *this;
