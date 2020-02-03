@@ -88,8 +88,11 @@ public:
         return fds_[READ_FD] != INVALID_FD && fds_[WRITE_FD] != INVALID_FD;
     }
     void notify() {
-        char c = 1;
-        ::send(fds_[WRITE_FD], &c, sizeof(c), 0);
+        int ret = 0;
+        do {
+            char c = 1;
+            ret = (int)::send(fds_[WRITE_FD], &c, sizeof(c), 0);
+        } while(ret < 0 && getLastError() == EINTR);
     }
     
     SOCKET_FD getReadFD() override {
@@ -98,10 +101,10 @@ public:
     
     KMError onEvent(KMEvent ev) override {
         char buf[1024];
-        int ret = ::recv(fds_[READ_FD], buf, sizeof(buf), 0);
-        while (ret == sizeof(buf)) {
-            ret = ::recv(fds_[READ_FD], buf, sizeof(buf), 0);
-        }
+        int ret = 0;
+        do {
+            ret = (int)::recv(fds_[READ_FD], buf, sizeof(buf), 0);
+        } while(ret == sizeof(buf) || (ret < 0 && getLastError() == EINTR));
         return KMError::NOERR;
     }
 private:
