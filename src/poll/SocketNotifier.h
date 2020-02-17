@@ -24,6 +24,7 @@
 
 #include "util/util.h"
 #include "util/defer.h"
+#include "util/skutils.h"
 #include "Notifier.h"
 
 KUMA_NS_BEGIN
@@ -50,7 +51,7 @@ public:
             return false;
         }
         auto lfd = ::socket(AF_INET, SOCK_STREAM, 0);
-        DEFER(closeFd(lfd));
+        DEFER(SKUtils::close(lfd));
         if(::bind(lfd, (const sockaddr*)&ss_addr, sizeof(sockaddr_in)) != 0) {
             return false;
         }
@@ -88,11 +89,8 @@ public:
         return fds_[READ_FD] != INVALID_FD && fds_[WRITE_FD] != INVALID_FD;
     }
     void notify() {
-        int ret = 0;
-        do {
-            char c = 1;
-            ret = (int)::send(fds_[WRITE_FD], &c, sizeof(c), 0);
-        } while(ret < 0 && getLastError() == EINTR);
+        char c = 1;
+        SKUtils::send(fds_[WRITE_FD], &c, sizeof(c), 0);
     }
     
     SOCKET_FD getReadFD() override {
@@ -101,20 +99,20 @@ public:
     
     KMError onEvent(KMEvent ev) override {
         char buf[1024];
-        int ret = 0;
+        ssize_t ret = 0;
         do {
-            ret = (int)::recv(fds_[READ_FD], buf, sizeof(buf), 0);
-        } while(ret == sizeof(buf) || (ret < 0 && getLastError() == EINTR));
+            ret = SKUtils::recv(fds_[READ_FD], buf, sizeof(buf), 0);
+        } while(ret == sizeof(buf));
         return KMError::NOERR;
     }
 private:
     void cleanup() {
         if (fds_[READ_FD] != INVALID_FD) {
-            closeFd(fds_[READ_FD]);
+            SKUtils::close(fds_[READ_FD]);
             fds_[READ_FD] = INVALID_FD;
         }
         if (fds_[WRITE_FD] != INVALID_FD) {
-            closeFd(fds_[WRITE_FD]);
+            SKUtils::close(fds_[WRITE_FD]);
             fds_[WRITE_FD] = INVALID_FD;
         }
     }
