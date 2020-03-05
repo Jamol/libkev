@@ -59,11 +59,38 @@ public:
         }
     }
     EventLoop::Task task;
-    State state = State::ACTIVE;
+    State           state = State::ACTIVE;
     EventLoopToken* token;
 };
 using TaskQueue = DLQueue<TaskSlot>;
 using TaskNodePtr = TaskQueue::NodePtr;
+
+class DelayedTaskSlot
+{
+public:
+    DelayedTaskSlot(EventLoop::Impl *loop, EventLoopToken *token);
+    ~DelayedTaskSlot()
+    {
+        cancel();
+    }
+    template <typename F>
+    void schedule(uint32_t delay_ms, F &&f)
+    {
+        timer.schedule(delay_ms, TimerMode::ONE_SHOT, [f=std::forward<F>(f)] () mutable {
+            f();
+        });
+    }
+    void cancel()
+    {
+        timer.cancel();
+    }
+
+public:
+    EventLoopToken* token;
+    Timer::Impl     timer;
+};
+using DelayedTaskQueue = DLQueue<DelayedTaskSlot>;
+using DelayedTaskNodePtr = DelayedTaskQueue::NodePtr;
 
 enum class LoopActivity {
     EXIT,
@@ -112,6 +139,9 @@ public:
     std::thread::id threadId() const { return thread_id_; }
     KMError appendTask(Task task, EventLoopToken *token);
     KMError removeTask(EventLoopToken *token);
+    KMError appendDelayedTask(uint32_t delay_ms, Task task, EventLoopToken *token);
+    KMError removeDelayedTask(EventLoopToken *token);
+    KMError removeDelayedTaskNode(DelayedTaskNodePtr &node);
 
     template<typename F>
     auto invoke(F &&f)
@@ -168,6 +198,14 @@ public:
     }
     KMError post(Task task, EventLoopToken *token=nullptr);
 
+    template<typename F, std::enable_if_t<!std::is_copy_constructible<F>{}, int> = 0>
+    KMError postDelayed(uint32_t delay_ms, F &&f, EventLoopToken *token=nullptr)
+    {
+        wrapper<F> wf{std::forward<F>(f)};
+        return postDelayed(delay_ms, Task(std::move(wf)), token);
+    }
+    KMError postDelayed(uint32_t delay_ms, Task task, EventLoopToken *token=nullptr);
+
     void wakeup();
     
     void loopOnce(uint32_t max_wait_ms);
@@ -193,6 +231,7 @@ protected:
     TaskQueue           task_queue_;
     LockType            task_mutex_;
     LockType            task_run_mutex_;
+    DelayedTaskQueue    dtask_queue_;
     
     ObserverQueue       obs_queue_;
     LockType            obs_mutex_;
@@ -215,6 +254,8 @@ public:
     
     void appendTaskNode(TaskNodePtr &node);
     void removeTaskNode(TaskNodePtr &node);
+    void appendDelayedTaskNode(DelayedTaskNodePtr &node);
+    void removeDelayedTaskNode(DelayedTaskNodePtr &node);
     
     bool expired();
     void reset();
@@ -225,6 +266,7 @@ protected:
     
     // task_nodes_ is protected by EventLoop task_mutex_
     std::list<TaskNodePtr> task_nodes_;
+    std::list<DelayedTaskNodePtr> dtask_nodes_;
     
     bool observed = false;
     ObserverToken obs_token_;

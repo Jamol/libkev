@@ -185,6 +185,14 @@ public:
         return post(Task(std::move(wf)), token);
     }
     KMError post(Task task, Token *token=nullptr);
+    
+    template<typename F, std::enable_if_t<!std::is_copy_constructible<F>{}, int> = 0>
+    KMError postDelayed(uint32_t delay_ms, F &&f, Token *token=nullptr)
+    {
+        wrapper<F> wf{std::forward<F>(f)};
+        return postDelayed(delay_ms, Task(std::move(wf)), token);
+    }
+    KMError postDelayed(uint32_t delay_ms, Task task, Token *token=nullptr);
 
     void wakeup();
     

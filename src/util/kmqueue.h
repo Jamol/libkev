@@ -159,6 +159,7 @@ public:
             node->prev_ = tail_;
         }
         tail_ = node;
+        ++count_;
         return node;
     }
     
@@ -197,12 +198,13 @@ public:
                 head_.reset();
                 tail_.reset();
             }
+            --count_;
         }
     }
     
     bool remove(const NodePtr &node)
-    {
-        if (!node) {
+    {// make sure the node is in this queue
+        if (!node || (!node->prev_ && !node->next_)) {
             return false;
         }
         if (node->next_) {
@@ -217,6 +219,7 @@ public:
         }
         node->next_.reset();
         node->prev_.reset();
+        --count_;
         return true;
     }
     
@@ -224,17 +227,24 @@ public:
     {
         return !head_;
     }
+
+    size_t size()
+    {
+        return count_.load(std::memory_order_relaxed);
+    }
     
     void swap(DLQueue &other)
     {
         head_.swap(other.head_);
         tail_.swap(other.tail_);
+        auto c = count_.exchange(other.count_.load(std::memory_order_relaxed), std::memory_order_relaxed);
+        other.count_.exchange(c, std::memory_order_relaxed);
     }
     
 protected:
     NodePtr head_;
-    char __pad__[kPaddingSize - sizeof(NodePtr)];
     NodePtr tail_;
+    std::atomic<size_t> count_{0};
 };
     
 KUMA_NS_END

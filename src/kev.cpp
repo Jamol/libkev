@@ -199,6 +199,11 @@ KMError EventLoop::post(Task task, Token *token)
     return pimpl_->post(std::move(task), token?token->pimpl():nullptr);
 }
 
+KMError EventLoop::postDelayed(uint32_t delay_ms, Task task, Token *token)
+{
+    return pimpl_->postDelayed(delay_ms, std::move(task), token?token->pimpl():nullptr);
+}
+
 void EventLoop::wakeup()
 {
     pimpl_->wakeup();

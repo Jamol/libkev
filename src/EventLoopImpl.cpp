@@ -296,6 +296,63 @@ KMError EventLoop::Impl::removeTask(EventLoopToken *token)
     return KMError::NOERR;
 }
 
+
+KMError EventLoop::Impl::appendDelayedTask(uint32_t delay_ms, Task task, EventLoopToken *token)
+{
+    if (token && token->eventLoop().get() != this) {
+        return KMError::INVALID_PARAM;
+    }
+    auto node = std::make_shared<DelayedTaskQueue::DLNode>(this, token);
+    {
+        LockGuard g(task_mutex_);
+        if (stop_loop_) {
+            return KMError::INVALID_STATE;
+        }
+        dtask_queue_.enqueue(node);
+        if (token) {
+            token->appendDelayedTaskNode(node);
+        }
+    }
+    std::weak_ptr<DelayedTaskQueue::DLNode> weak_node = node;
+    node->element().schedule(delay_ms, [this, t=std::move(task), wn=std::move(weak_node)] () mutable {
+        if (t) t();
+        auto node = wn.lock();
+        if (node) {
+            removeDelayedTaskNode(node);
+        }
+    });
+    return KMError::NOERR;
+}
+
+KMError EventLoop::Impl::removeDelayedTask(EventLoopToken *token)
+{
+    if (!token || token->eventLoop().get() != this) {
+        return KMError::INVALID_PARAM;
+    }
+    LockGuard g(task_mutex_);
+    for (auto &node : token->dtask_nodes_) {
+        auto &dtask_slot = node->element();
+        dtask_slot.token = nullptr;
+        dtask_slot.cancel();
+        dtask_queue_.remove(node);
+    }
+    token->dtask_nodes_.clear();
+    return KMError::NOERR;
+}
+
+KMError EventLoop::Impl::removeDelayedTaskNode(DelayedTaskNodePtr &node)
+{
+    LockGuard g(task_mutex_);
+    auto &dtask_slot = node->element();
+    dtask_slot.cancel();
+    if (dtask_slot.token) {
+        dtask_slot.token->removeDelayedTaskNode(node);
+        dtask_slot.token = nullptr;
+    }
+    dtask_queue_.remove(node);
+    return KMError::NOERR;
+}
+
 KMError EventLoop::Impl::sync(Task task)
 {
     if(inSameThread()) {
@@ -341,9 +398,22 @@ KMError EventLoop::Impl::post(Task task, EventLoopToken *token)
     return KMError::NOERR;
 }
 
+KMError EventLoop::Impl::postDelayed(uint32_t delay_ms, Task task, EventLoopToken *token)
+{
+    return  appendDelayedTask(delay_ms, std::move(task), token);
+}
+
 void EventLoop::Impl::wakeup()
 {
     poll_->notify();
+}
+
+/////////////////////////////////////////////////////////////////
+// DelayedTaskSlot
+DelayedTaskSlot::DelayedTaskSlot(EventLoop::Impl *loop, EventLoopToken *token)
+    : token(token), timer(loop->getTimerMgr())
+{
+
 }
 
 /////////////////////////////////////////////////////////////////
@@ -383,6 +453,21 @@ void EventLoop::Token::Impl::removeTaskNode(TaskNodePtr &node)
     }
 }
 
+void EventLoop::Token::Impl::appendDelayedTaskNode(DelayedTaskNodePtr &node)
+{
+    dtask_nodes_.emplace_back(node);
+}
+
+void EventLoop::Token::Impl::removeDelayedTaskNode(DelayedTaskNodePtr &node)
+{
+    for (auto it = dtask_nodes_.begin(); it != dtask_nodes_.end(); ++it) {
+        if (*it == node) {
+            dtask_nodes_.erase(it);
+            break;
+        }
+    }
+}
+
 bool EventLoop::Token::Impl::expired()
 {
     return loop_.expired() || (observed && obs_token_.expired());
@@ -394,6 +479,9 @@ void EventLoop::Token::Impl::reset()
     if (loop) {
         if (!task_nodes_.empty()) {
             loop->removeTask(this);
+        }
+        if (!dtask_nodes_.empty()) {
+            loop->removeDelayedTask(this);
         }
         if (!obs_token_.expired()) {
             loop->removeObserver(this);

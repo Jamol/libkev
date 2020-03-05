@@ -27,6 +27,11 @@ void foo()
     printf("foo called\n");
 }
 
+void foo2()
+{
+    printf("foo2 called\n");
+}
+
 int bar()
 {
     printf("bar called\n");
@@ -36,6 +41,7 @@ int bar()
 int main(int argc, const char * argv[])
 {
     EventLoop run_loop;
+    EventLoop::Token token = run_loop.createToken();
 
     std::thread thr([&] {
         if (run_loop.init()) {
@@ -44,13 +50,28 @@ int main(int argc, const char * argv[])
     });
     
     Timer timer(&run_loop);
-    timer.schedule(2000, TimerMode::ONE_SHOT, [&] {
+    timer.schedule(3000, TimerMode::ONE_SHOT, [&] {
         printf("onTimer\n");
 
         run_loop.stop();
     });
     
-    run_loop.async([] { printf ("loop async\n"); });
+    auto delayed_token = run_loop.createToken();
+    run_loop.postDelayed(1000,[] {
+        printf("postDelayed 1000\n");
+    }, &delayed_token);
+    
+    run_loop.postDelayed(1500,[] {
+        printf("postDelayed 1500\n");
+    });
+    
+    run_loop.postDelayed(5000,[] {
+        printf("postDelayed 5000\n");
+    });
+    
+    delayed_token.reset();
+    
+    run_loop.async([] { printf ("loop async\n"); }, &token);
     printf("async called\n");
     
     auto ret = run_loop.invoke([] { printf ("loop invoke\n"); return 88; });
@@ -71,9 +92,16 @@ int main(int argc, const char * argv[])
     int_ptr = std::make_unique<int>(789);
     run_loop.async([p=std::move(int_ptr)] {
         printf("async: move-only, i=%d\n", *p);
-    });
+    }, &token);
     
     run_loop.post(foo);
+    int ddc = 81;
+    run_loop.post([=] {
+        printf("ddc=%d\n", ddc);
+        foo2();
+    }, &token);
+    
+    //token.reset();
     
     ret = run_loop.invoke(bar);
     printf("ret=%d\n", ret);
@@ -88,4 +116,5 @@ int main(int argc, const char * argv[])
 
     return 0;
 }
+
 ```
