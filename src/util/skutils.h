@@ -14,6 +14,7 @@
 # include <Ws2tcpip.h>
 #else // KUMA_OS_WIN
 # include <unistd.h>
+# include <netdb.h>
 # include <sys/uio.h>
 # include <sys/socket.h>
 #endif
@@ -161,6 +162,42 @@ public:
 #else
         return ::close(fd);
 #endif
+    }
+
+    static std::string getSockName(SOCKET_FD fd)
+    {
+        if (fd == INVALID_FD) {
+            return std::string();
+        }
+
+        sockaddr_storage ss_addr{ 0 };
+        socklen_t addr_len = sizeof(ss_addr);
+        if (::getsockname(fd, (sockaddr*)&ss_addr, &addr_len) != 0) {
+            return std::string();
+        }
+        char ip[128] = { 0 };
+        if(::getnameinfo((struct sockaddr*)&ss_addr, addr_len, ip, sizeof(ip), NULL, 0, NI_NUMERICHOST|NI_NUMERICSERV) != 0) {
+            return std::string();
+        }
+        return ip;
+    }
+
+    static std::string getPeerName(SOCKET_FD fd)
+    {
+        if (fd == INVALID_FD) {
+            return std::string();
+        }
+
+        sockaddr_storage ss_addr{ 0 };
+        socklen_t addr_len = sizeof(ss_addr);
+        if (::getpeername(fd, (sockaddr*)&ss_addr, &addr_len) != 0) {
+            return std::string();
+        }
+        char ip[128] = { 0 };
+        if(::getnameinfo((struct sockaddr*)&ss_addr, addr_len, ip, sizeof(ip), NULL, 0, NI_NUMERICHOST|NI_NUMERICSERV) != 0) {
+            return std::string();
+        }
+        return ip;
     }
     
     static int getLastError()

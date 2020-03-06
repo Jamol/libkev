@@ -71,72 +71,10 @@ enum{
     KM_RESOLVE_IPV6    = 2
 };
 
-#ifdef KUMA_OS_WIN
-typedef int (WSAAPI *pf_getaddrinfo)(
-    _In_opt_  PCSTR pNodeName,
-    _In_opt_  PCSTR pServiceName,
-    _In_opt_  const addrinfo *pHints,
-    _Out_     addrinfo **ppResult
-);
+#define km_getaddrinfo getaddrinfo
+#define km_getnameinfo getnameinfo
+#define km_freeaddrinfo freeaddrinfo
 
-typedef int (WSAAPI *pf_getnameinfo)(
-    __in   const struct sockaddr FAR *sa,
-    __in   socklen_t salen,
-    __out  char FAR *host,
-    __in   DWORD hostlen,
-    __out  char FAR *serv,
-    __in   DWORD servlen,
-    __in   int flags
-);
-
-typedef void (WSAAPI *pf_freeaddrinfo)(
-    __in  struct addrinfo *ai
-);
-
-static HMODULE s_hmod_ws2_32 = NULL;
-static bool s_ipv6_support = false;
-static bool s_ipv6_inilized = false;
-pf_getaddrinfo km_getaddrinfo = nullptr;
-pf_getnameinfo km_getnameinfo = nullptr;
-pf_freeaddrinfo km_freeaddrinfo = nullptr;
-#else
-# define km_getaddrinfo getaddrinfo
-# define km_getnameinfo getnameinfo
-# define km_freeaddrinfo freeaddrinfo
-#endif
-
-bool ipv6_api_init()
-{
-#ifdef KUMA_OS_WIN
-    if(!s_ipv6_inilized)
-    {
-        s_ipv6_inilized = true;
-        
-#define GET_WS2_FUNCTION(f) km_##f = (pf_##f)GetProcAddress(s_hmod_ws2_32, #f);\
-if(NULL == km_##f)\
-{\
-FreeLibrary(s_hmod_ws2_32);\
-s_hmod_ws2_32 = NULL;\
-break;\
-}
-        
-        s_hmod_ws2_32 = LoadLibrary(L"Ws2_32.dll");
-        do
-        {
-            if(NULL == s_hmod_ws2_32)
-                break;
-            GET_WS2_FUNCTION(getaddrinfo);
-            GET_WS2_FUNCTION(getnameinfo);
-            GET_WS2_FUNCTION(freeaddrinfo);
-            s_ipv6_support = true;
-        } while (0);
-    }
-    
-    return s_ipv6_support;
-#else
-    return true;
-#endif
-}
 
 #if 0
 int km_resolve_2_ip_v4(const char* host_name, char *ip_buf, int ip_buf_len)
@@ -204,13 +142,6 @@ extern "C" int km_resolve_2_ip(const char* host_name, char *ip_buf, int ip_buf_l
     }
     
     ip_buf[0] = '\0';
-#ifdef KUMA_OS_WIN
-    if(!ipv6_api_init()) {
-        //if(KM_RESOLVE_IPV6 == ipv)
-            return -1;
-        //return km_resolve_2_ip_v4(host_name, ip_buf, ip_buf_len);
-    }
-#endif
     
     addrinfo* ai = nullptr;
     struct addrinfo hints = {0};
@@ -265,26 +196,6 @@ extern "C" int km_set_sock_addr(const char* addr, unsigned short port,
                                 struct addrinfo* hints, struct sockaddr * sk_addr,
                                 unsigned int sk_addr_len)
 {
-#ifdef KUMA_OS_WIN
-    if(!ipv6_api_init()) {
-        struct sockaddr_in *sa = (struct sockaddr_in*)sk_addr;
-        sa->sin_family = AF_INET;
-        sa->sin_port = htons(port);
-        if(!addr || addr[0] == '\0') {
-            sa->sin_addr.s_addr = INADDR_ANY;
-            return 0;
-        } else {
-            auto ret = inet_pton(sa->sin_family, addr, &sa->sin_addr);
-            if (ret == 1) {
-                return 0;
-            } else if (ret == 0) {
-                return EAI_NONAME;
-            } else {
-                return -1;
-            }
-        }
-    }
-#endif
     char service[128] = {0};
     struct addrinfo* ai = nullptr;
     if(!addr && hints) {
@@ -310,16 +221,6 @@ extern "C" int km_set_sock_addr(const char* addr, unsigned short port,
 extern "C" int km_get_sock_addr(const sockaddr *sk_addr, unsigned int sk_addr_len,
                                 char *addr, unsigned int addr_len, unsigned short *port)
 {
-#ifdef KUMA_OS_WIN
-    if(!ipv6_api_init()) {
-        struct sockaddr_in *sa = (struct sockaddr_in*)sk_addr;
-        inet_ntop(sa->sin_family, &sa->sin_addr, addr, addr_len);
-        if(port)
-            *port = ntohs(sa->sin_port);
-        return 0;
-    }
-#endif
-    
     char service[16] = {0};
     if(km_getnameinfo(sk_addr, sk_addr_len, addr, addr_len, service, sizeof(service), NI_NUMERICHOST|NI_NUMERICSERV) != 0)
         return -1;
