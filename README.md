@@ -20,7 +20,7 @@ $ python ./bld/your_os/build_your_os.py
 #include <thread>
 #include <memory>
 
-using namespace kuma;
+using namespace kev;
 
 void foo()
 {

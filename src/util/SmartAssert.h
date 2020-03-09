@@ -2,7 +2,7 @@
 
 #include <string>
 
-namespace kuma {
+namespace kev {
 
 class SmartAssert
 {
@@ -37,7 +37,7 @@ private:
     bool first_print_;
 };
 
-} // namespace kuma
+} // namespace kev
 
 #define SMART_ASSERT_A(x) SMART_ASSERT_OP(x, B)
 #define SMART_ASSERT_B(x) SMART_ASSERT_OP(x, A)
@@ -45,7 +45,7 @@ private:
 
 #define SMART_ASSERT(expr) \
     if(expr) ; \
-    else kuma::SmartAssert::make_assert(#expr).print_context(__FILE__, __LINE__).SMART_ASSERT_A
+    else kev::SmartAssert::make_assert(#expr).print_context(__FILE__, __LINE__).SMART_ASSERT_A
 
 // usage:
 // SMART_ASSERT(expr)(val1)(val2)(val3)...(valn)

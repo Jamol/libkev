@@ -22,7 +22,7 @@
 #ifndef __TimerManager_H__
 #define __TimerManager_H__
 
-#include "kmdefs.h"
+#include "kevdefs.h"
 #include "kev.h"
 
 #include <memory>
@@ -32,7 +32,7 @@
 # define TICK_COUNT_TYPE    uint64_t
 #endif
 
-KUMA_NS_BEGIN
+KEV_NS_BEGIN
 
 #define TIMER_VECTOR_BITS   8
 #define TIMER_VECTOR_SIZE   (1 << TIMER_VECTOR_BITS)
@@ -130,7 +130,7 @@ public:
     template<typename F, std::enable_if_t<!std::is_copy_constructible<F>{}, int> = 0>
     bool schedule(uint32_t delay_ms, TimerMode mode, F &&f)
     {
-        wrapper<F> wf{std::forward<F>(f)};
+        lambda_wrapper<F> wf{std::forward<F>(f)};
         return schedule(delay_ms, mode, TimerCallback(std::move(wf)));
     }
     bool schedule(uint32_t delay_ms, TimerMode mode, TimerCallback cb);
@@ -143,6 +143,6 @@ private:
     TimerManager::TimerNode timer_node_; // intrusive list node
 };
 
-KUMA_NS_END
+KEV_NS_END
 
 #endif

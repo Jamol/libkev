@@ -27,7 +27,7 @@
 #include <sys/event.h>
 #include <sys/time.h>
 
-KUMA_NS_BEGIN
+KEV_NS_BEGIN
 
 #define MAX_EVENT_NUM   500
 
@@ -38,10 +38,10 @@ public:
     ~KQueue();
     
     bool init() override;
-    KMError registerFd(SOCKET_FD fd, KMEvent events, IOCallback cb) override;
-    KMError unregisterFd(SOCKET_FD fd) override;
-    KMError updateFd(SOCKET_FD fd, KMEvent events) override;
-    KMError wait(uint32_t wait_time_ms) override;
+    Result registerFd(SOCKET_FD fd, KMEvent events, IOCallback cb) override;
+    Result unregisterFd(SOCKET_FD fd) override;
+    Result updateFd(SOCKET_FD fd, KMEvent events) override;
+    Result wait(uint32_t wait_time_ms) override;
     void notify() override;
     PollType getType() const override { return PollType::KQUEUE; }
     
@@ -82,32 +82,32 @@ bool KQueue::init()
             return false;
         }
         IOCallback cb ([this](KMEvent ev, void*, size_t) { notifier_->onEvent(ev); });
-        registerFd(notifier_->getReadFD(), KUMA_EV_READ|KUMA_EV_ERROR, std::move(cb));
+        registerFd(notifier_->getReadFD(), kEventRead|kEventError, std::move(cb));
     }
     return true;
 }
 
-KMError KQueue::registerFd(SOCKET_FD fd, KMEvent events, IOCallback cb)
+Result KQueue::registerFd(SOCKET_FD fd, KMEvent events, IOCallback cb)
 {
     if (fd < 0) {
-        return KMError::INVALID_PARAM;
+        return Result::INVALID_PARAM;
     }
     resizePollItems(fd);
     struct kevent kevents[2];
     int nchanges = 0;
     if (INVALID_FD != poll_items_[fd].fd) {
-        if (!!(poll_items_[fd].events & KUMA_EV_READ) && !(events & KUMA_EV_READ)) {
+        if (!!(poll_items_[fd].events & kEventRead) && !(events & kEventRead)) {
             EV_SET(&kevents[nchanges++], fd, EVFILT_READ, EV_DELETE, 0, 0, 0);
-            poll_items_[fd].events &= ~KUMA_EV_READ;
+            poll_items_[fd].events &= ~kEventRead;
         }
-        if (!!(poll_items_[fd].events & KUMA_EV_WRITE) && !(events & KUMA_EV_WRITE)) {
+        if (!!(poll_items_[fd].events & kEventWrite) && !(events & kEventWrite)) {
             EV_SET(&kevents[nchanges++], fd, EVFILT_WRITE, EV_DELETE, 0, 0, 0);
-            poll_items_[fd].events &= ~KUMA_EV_WRITE;
+            poll_items_[fd].events &= ~kEventWrite;
         }
         ::kevent(kqueue_fd_, kevents, nchanges, 0, 0, 0);
         if (poll_items_[fd].events == events) {
             poll_items_[fd].cb = std::move(cb);
-            return KMError::NOERR;
+            return Result::OK;
         }
     }
     nchanges = 0;
@@ -115,10 +115,10 @@ KMError KQueue::registerFd(SOCKET_FD fd, KMEvent events, IOCallback cb)
     if (work_on_et_mode_) {
         op |= EV_CLEAR;
     }
-    if (events & KUMA_EV_READ) {
+    if (events & kEventRead) {
         EV_SET(&kevents[nchanges++], fd, EVFILT_READ, op , 0, 0, 0);
     }
-    if (events & KUMA_EV_WRITE) {
+    if (events & kEventWrite) {
         EV_SET(&kevents[nchanges++], fd, EVFILT_WRITE, op , 0, 0, 0);
     }
     poll_items_[fd].fd = fd;
@@ -126,28 +126,28 @@ KMError KQueue::registerFd(SOCKET_FD fd, KMEvent events, IOCallback cb)
     poll_items_[fd].cb = std::move(cb);
     
     if(::kevent(kqueue_fd_, kevents, nchanges, 0, 0, 0) == -1) {
-        KUMA_ERRTRACE("KQueue::registerFd error, fd=" << fd << ", ev=" << events << ", errno=" << errno);
-        return KMError::FAILED;
+        KM_ERRTRACE("KQueue::registerFd error, fd=" << fd << ", ev=" << events << ", errno=" << errno);
+        return Result::FAILED;
     }
-    KUMA_INFOTRACE("KQueue::registerFd, fd=" << fd << ", ev=" << events);
+    KM_INFOTRACE("KQueue::registerFd, fd=" << fd << ", ev=" << events);
 
-    return KMError::NOERR;
+    return Result::OK;
 }
 
-KMError KQueue::unregisterFd(SOCKET_FD fd)
+Result KQueue::unregisterFd(SOCKET_FD fd)
 {
     int max_fd = int(poll_items_.size() - 1);
-    KUMA_INFOTRACE("KQueue::unregisterFd, fd="<<fd<<", max_fd="<<max_fd);
+    KM_INFOTRACE("KQueue::unregisterFd, fd="<<fd<<", max_fd="<<max_fd);
     if (fd < 0 || fd > max_fd) {
-        KUMA_WARNTRACE("KQueue::unregisterFd, failed, max_fd=" << max_fd);
-        return KMError::INVALID_PARAM;
+        KM_WARNTRACE("KQueue::unregisterFd, failed, max_fd=" << max_fd);
+        return Result::INVALID_PARAM;
     }
     struct kevent kevents[2];
     int nchanges = 0;
-    if (poll_items_[fd].events & KUMA_EV_READ) {
+    if (poll_items_[fd].events & kEventRead) {
         EV_SET(&kevents[nchanges++], fd, EVFILT_READ, EV_DELETE, 0, 0, 0);
     }
-    if (poll_items_[fd].events & KUMA_EV_WRITE) {
+    if (poll_items_[fd].events & kEventWrite) {
         EV_SET(&kevents[nchanges++], fd, EVFILT_WRITE, EV_DELETE, 0, 0, 0);
     }
     ::kevent(kqueue_fd_, kevents, nchanges, 0, 0, 0);
@@ -156,52 +156,52 @@ KMError KQueue::unregisterFd(SOCKET_FD fd)
     } else if (fd == max_fd) {
         poll_items_.pop_back();
     }
-    return KMError::NOERR;
+    return Result::OK;
 }
 
-KMError KQueue::updateFd(SOCKET_FD fd, KMEvent events)
+Result KQueue::updateFd(SOCKET_FD fd, KMEvent events)
 {
     if(fd < 0 || fd >= poll_items_.size() || INVALID_FD == poll_items_[fd].fd) {
-        return KMError::FAILED;
+        return Result::FAILED;
     }
     
     struct kevent kevents[2];
     int nchanges = 0;
-    if (!!(poll_items_[fd].events & KUMA_EV_READ) && !(events & KUMA_EV_READ)) {
+    if (!!(poll_items_[fd].events & kEventRead) && !(events & kEventRead)) {
         EV_SET(&kevents[nchanges++], fd, EVFILT_READ, EV_DELETE, 0, 0, 0);
-        poll_items_[fd].events &= ~KUMA_EV_READ;
+        poll_items_[fd].events &= ~kEventRead;
     }
-    if (!!(poll_items_[fd].events & KUMA_EV_WRITE) && !(events & KUMA_EV_WRITE)) {
+    if (!!(poll_items_[fd].events & kEventWrite) && !(events & kEventWrite)) {
         EV_SET(&kevents[nchanges++], fd, EVFILT_WRITE, EV_DELETE, 0, 0, 0);
-        poll_items_[fd].events &= ~KUMA_EV_WRITE;
+        poll_items_[fd].events &= ~kEventWrite;
     }
     if (nchanges) { // remove events
         ::kevent(kqueue_fd_, kevents, nchanges, 0, 0, 0);
     }
     if (poll_items_[fd].events == events) {
-        return KMError::NOERR;
+        return Result::OK;
     }
     nchanges = 0;
     unsigned short op = EV_ADD;
     if (work_on_et_mode_) {
         op |= EV_CLEAR;
     }
-    if (events & KUMA_EV_READ) {
+    if (events & kEventRead) {
         EV_SET(&kevents[nchanges++], fd, EVFILT_READ, op , 0, 0, 0);
     }
-    if (events & KUMA_EV_WRITE) {
+    if (events & kEventWrite) {
         EV_SET(&kevents[nchanges++], fd, EVFILT_WRITE, op , 0, 0, 0);
     }
     if(nchanges && ::kevent(kqueue_fd_, kevents, nchanges, 0, 0, 0) == -1) {
-        KUMA_ERRTRACE("KQueue::updateFd error, fd="<<fd<<", errno="<<errno);
-        return KMError::FAILED;
+        KM_ERRTRACE("KQueue::updateFd error, fd="<<fd<<", errno="<<errno);
+        return Result::FAILED;
     }
     poll_items_[fd].events = events;
-    //KUMA_INFOTRACE("KQueue::updateFd, fd="<<fd<<", ev="<<events);
-    return KMError::NOERR;
+    //KM_INFOTRACE("KQueue::updateFd, fd="<<fd<<", ev="<<events);
+    return Result::OK;
 }
 
-KMError KQueue::wait(uint32_t wait_ms)
+Result KQueue::wait(uint32_t wait_ms)
 {
     timespec tval = { 0, 0 };
     if(wait_ms != -1) {
@@ -212,9 +212,9 @@ KMError KQueue::wait(uint32_t wait_ms)
     int nevents = kevent(kqueue_fd_, 0, 0, kevents, MAX_EVENT_NUM, wait_ms == -1 ? NULL : &tval);
     if (nevents < 0) {
         if(errno != EINTR) {
-            KUMA_ERRTRACE("KQueue::wait, errno="<<errno);
+            KM_ERRTRACE("KQueue::wait, errno="<<errno);
         }
-        KUMA_INFOTRACE("KQueue::wait, nevents="<<nevents<<", errno="<<errno);
+        KM_INFOTRACE("KQueue::wait, nevents="<<nevents<<", errno="<<errno);
     } else {
         SOCKET_FD fds[MAX_EVENT_NUM] = { INVALID_FD };
         int nfds = 0;
@@ -224,12 +224,12 @@ KMError KQueue::wait(uint32_t wait_ms)
             if(fd >= 0 && fd <= max_fd) {
                 KMEvent revents = 0;
                 if (kevents[i].filter == EVFILT_READ) {
-                    revents |= KUMA_EV_READ;
+                    revents |= kEventRead;
                 } else if (kevents[i].filter == EVFILT_WRITE) {
-                    revents |= KUMA_EV_WRITE;
+                    revents |= kEventWrite;
                 }
                 if (kevents[i].flags & EV_ERROR) {
-                    revents |= KUMA_EV_ERROR;
+                    revents |= kEventError;
                 }
                 if (!revents) {
                     continue;
@@ -254,7 +254,7 @@ KMError KQueue::wait(uint32_t wait_ms)
             }
         }
     }
-    return KMError::NOERR;
+    return Result::OK;
 }
 
 void KQueue::notify()
@@ -266,4 +266,4 @@ IOPoll* createKQueue() {
     return new KQueue();
 }
 
-KUMA_NS_END
+KEV_NS_END

@@ -22,11 +22,11 @@
 #ifndef __Notifier_H__
 #define __Notifier_H__
 
-#include "evdefs.h"
+#include "kevdefs.h"
 
 #include <memory>
 
-KUMA_NS_BEGIN
+KEV_NS_BEGIN
 
 class Notifier
 {
@@ -36,13 +36,13 @@ public:
     virtual bool ready() = 0;
     virtual void notify() = 0;
     virtual SOCKET_FD getReadFD() = 0;
-    virtual KMError onEvent(KMEvent ev) = 0;
+    virtual Result onEvent(KMEvent ev) = 0;
     
     static std::unique_ptr<Notifier> createNotifier();
 };
 
 using NotifierPtr = std::unique_ptr<Notifier>;
 
-KUMA_NS_END
+KEV_NS_END
 
 #endif

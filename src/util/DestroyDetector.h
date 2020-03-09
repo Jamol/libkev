@@ -1,17 +1,16 @@
 //
 //  DestroyDetector.h
-//  kuma
+//  kev
 //
 //  Created by Fengping Bao <jamol@live.com> on 8/9/16.
-//  Copyright © 2016 kuma. All rights reserved.
+//  Copyright © 2016-2020 kev. All rights reserved.
 //
 
 #ifndef __DestroyDetector_H__
 #define __DestroyDetector_H__
 
-#include "kmdefs.h"
 
-KUMA_NS_BEGIN
+namespace kev {
 
 class DestroyDetector
 {
@@ -58,13 +57,13 @@ protected:
 };
 
 #define DESTROY_DETECTOR_SETUP() \
-    kuma::DestroyDetector::Checker __dd_check(this);
+    kev::DestroyDetector::Checker __dd_check(this);
 
 #define DESTROY_DETECTOR_CHECK(ret) \
     if(__dd_check.isDestroyed()) return ret;
 
 #define DESTROY_DETECTOR_CHECK_VOID() DESTROY_DETECTOR_CHECK((void()))
 
-KUMA_NS_END
+} // namespace kev
 
 #endif /* __DestroyDetector_H__ */

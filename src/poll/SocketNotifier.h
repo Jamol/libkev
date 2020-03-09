@@ -27,7 +27,7 @@
 #include "util/skutils.h"
 #include "Notifier.h"
 
-KUMA_NS_BEGIN
+KEV_NS_BEGIN
 
 class SocketNotifier : public Notifier
 {
@@ -97,13 +97,13 @@ public:
         return fds_[READ_FD];
     }
     
-    KMError onEvent(KMEvent ev) override {
+    Result onEvent(KMEvent ev) override {
         char buf[1024];
         ssize_t ret = 0;
         do {
             ret = SKUtils::recv(fds_[READ_FD], buf, sizeof(buf), 0);
         } while(ret == sizeof(buf));
-        return KMError::NOERR;
+        return Result::OK;
     }
 private:
     void cleanup() {
@@ -120,6 +120,6 @@ private:
     SOCKET_FD fds_[2] { INVALID_FD, INVALID_FD };
 };
 
-KUMA_NS_END
+KEV_NS_END
 
 #endif

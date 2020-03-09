@@ -19,19 +19,18 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#ifndef __KUMAAPI_H__
-#define __KUMAAPI_H__
+#ifndef __KEVAPI_H__
+#define __KEVAPI_H__
 
-#include "kmdefs.h"
-#include "evdefs.h"
+#include "kevdefs.h"
 #include "kmtypes.h"
 
 #include <stdint.h>
 
-KUMA_NS_BEGIN
+KEV_NS_BEGIN
 
 
-class KUMA_API EventLoop
+class KEV_API EventLoop
 {
 public:
     using Task = std::function<void(void)>;
@@ -72,15 +71,15 @@ public:
     /* NOTE: cb must be valid untill unregisterFd called
      * this API is thread-safe
      */
-    KMError registerFd(SOCKET_FD fd, uint32_t events, IOCallback cb);
+    Result registerFd(SOCKET_FD fd, uint32_t events, IOCallback cb);
     /*
      * this API is thread-safe
      */
-    KMError updateFd(SOCKET_FD fd, uint32_t events);
+    Result updateFd(SOCKET_FD fd, uint32_t events);
     /*
      * this API is thread-safe
      */
-    KMError unregisterFd(SOCKET_FD fd, bool close_fd);
+    Result unregisterFd(SOCKET_FD fd, bool close_fd);
     
     PollType getPollType() const;
     bool isPollLT() const; // level trigger
@@ -106,7 +105,7 @@ public:
     template<typename F>
     auto invoke(F &&f)
     {
-        KMError err;
+        Result err;
         return invoke(std::forward<F>(f), err);
     }
 
@@ -115,12 +114,12 @@ public:
      * token is always unnecessary for sync task
      *
      * @param f the task to be executed. it will always be executed when call success
-     * @param err when f is executed, err is KMError::NOERR, otherwise is KMError
+     * @param err when f is executed, err is Result::OK, otherwise is Result
      *
      * @return return the result of f()
      */
     template<typename F, std::enable_if_t<!std::is_same<decltype(std::declval<F>()()), void>{}, int> = 0>
-    auto invoke(F &&f, KMError &err)
+    auto invoke(F &&f, Result &err)
     {
         static_assert(!std::is_same<decltype(f()), void>{}, "is void");
         if (inSameThread()) {
@@ -134,7 +133,7 @@ public:
     }
 
     template<typename F, std::enable_if_t<std::is_same<decltype(std::declval<F>()()), void>{}, int> = 0>
-    void invoke(F &&f, KMError &err)
+    void invoke(F &&f, Result &err)
     {
         static_assert(std::is_same<decltype(f()), void>{}, "not void");
         if (inSameThread()) {
@@ -150,12 +149,12 @@ public:
      * @param task the task to be executed. it will always be executed when call success
      */
     template<typename F, std::enable_if_t<!std::is_copy_constructible<F>{}, int> = 0>
-    KMError sync(F &&f)
+    Result sync(F &&f)
     {
-        wrapper<F> wf{std::forward<F>(f)};
+        lambda_wrapper<F> wf{std::forward<F>(f)};
         return sync(Task(std::move(wf)));
     }
-    KMError sync(Task task);
+    Result sync(Task task);
     
     /* run the task in loop thread.
      * the task will be executed at once if called on loop thread
@@ -166,12 +165,12 @@ public:
      * @param debugStr debug message of the f, e.g. file name and line where f is generated
      */
     template<typename F, std::enable_if_t<!std::is_copy_constructible<F>{}, int> = 0>
-    KMError async(F &&f, Token *token=nullptr, const char *debugStr=nullptr)
+    Result async(F &&f, Token *token=nullptr, const char *debugStr=nullptr)
     {
-        wrapper<F> wf{std::forward<F>(f)};
+        lambda_wrapper<F> wf{std::forward<F>(f)};
         return async(Task(std::move(wf)), token, debugStr);
     }
-    KMError async(Task task, Token *token=nullptr, const char *debugStr=nullptr);
+    Result async(Task task, Token *token=nullptr, const char *debugStr=nullptr);
     
     /* run the task in loop thread at next time.
      *
@@ -180,20 +179,20 @@ public:
      *              make sure the resources referenced by task are valid when task running
      */
     template<typename F, std::enable_if_t<!std::is_copy_constructible<F>{}, int> = 0>
-    KMError post(F &&f, Token *token=nullptr, const char *debugStr=nullptr)
+    Result post(F &&f, Token *token=nullptr, const char *debugStr=nullptr)
     {
-        wrapper<F> wf{std::forward<F>(f)};
+        lambda_wrapper<F> wf{std::forward<F>(f)};
         return post(Task(std::move(wf)), token, debugStr);
     }
-    KMError post(Task task, Token *token=nullptr, const char *debugStr=nullptr);
+    Result post(Task task, Token *token=nullptr, const char *debugStr=nullptr);
     
     template<typename F, std::enable_if_t<!std::is_copy_constructible<F>{}, int> = 0>
-    KMError postDelayed(uint32_t delay_ms, F &&f, Token *token=nullptr, const char *debugStr=nullptr)
+    Result postDelayed(uint32_t delay_ms, F &&f, Token *token=nullptr, const char *debugStr=nullptr)
     {
-        wrapper<F> wf{std::forward<F>(f)};
+        lambda_wrapper<F> wf{std::forward<F>(f)};
         return postDelayed(delay_ms, Task(std::move(wf)), token, debugStr);
     }
-    KMError postDelayed(uint32_t delay_ms, Task task, Token *token=nullptr, const char *debugStr=nullptr);
+    Result postDelayed(uint32_t delay_ms, Task task, Token *token=nullptr, const char *debugStr=nullptr);
 
     void wakeup();
     
@@ -216,7 +215,7 @@ private:
     Impl* pimpl_;
 };
 
-class KUMA_API Timer
+class KEV_API Timer
 {
 public:
     using TimerCallback = std::function<void(void)>;
@@ -235,7 +234,7 @@ public:
     template<typename F, std::enable_if_t<!std::is_copy_constructible<F>{}, int> = 0>
     bool schedule(uint32_t delay_ms, TimerMode mode, F &&f)
     {
-        wrapper<F> wf{std::forward<F>(f)};
+        lambda_wrapper<F> wf{std::forward<F>(f)};
         return schedule(delay_ms, mode, TimerCallback(std::move(wf)));
     }
     bool schedule(uint32_t delay_ms, TimerMode mode, TimerCallback cb);
@@ -255,8 +254,8 @@ private:
 
 // msg is null-terminated and msg_len doesn't include '\0'
 using LogCallback = void(*)(int level, const char* msg, size_t msg_len);
-KUMA_API void setLogCallback(LogCallback cb);
+KEV_API void setLogCallback(LogCallback cb);
 
-KUMA_NS_END
+KEV_NS_END
 
 #endif

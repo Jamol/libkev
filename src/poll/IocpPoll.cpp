@@ -23,7 +23,7 @@
 #include "util/kmtrace.h"
 #include "util/util.h"
 
-KUMA_NS_BEGIN
+KEV_NS_BEGIN
 
 class IocpPoll : public IOPoll
 {
@@ -32,10 +32,10 @@ public:
     ~IocpPoll();
     
     bool init();
-    KMError registerFd(SOCKET_FD fd, KMEvent events, IOCallback cb);
-    KMError unregisterFd(SOCKET_FD fd);
-    KMError updateFd(SOCKET_FD fd, KMEvent events);
-    KMError wait(uint32_t wait_ms);
+    Result registerFd(SOCKET_FD fd, KMEvent events, IOCallback cb);
+    Result unregisterFd(SOCKET_FD fd);
+    Result updateFd(SOCKET_FD fd, KMEvent events);
+    Result wait(uint32_t wait_ms);
     void notify();
     PollType getType() const { return PollType::IOCP; }
     bool isLevelTriggered() const { return false; }
@@ -61,31 +61,31 @@ bool IocpPoll::init()
 {
     hCompPort_ = CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, 0, 1);
     if (!hCompPort_) {
-        KUMA_ERRTRACE("IocpPoll::init, CreateIoCompletionPort failed, err=" << GetLastError());
+        KM_ERRTRACE("IocpPoll::init, CreateIoCompletionPort failed, err=" << GetLastError());
         return false;
     }
     return true;
 }
 
-KMError IocpPoll::registerFd(SOCKET_FD fd, KMEvent events, IOCallback cb)
+Result IocpPoll::registerFd(SOCKET_FD fd, KMEvent events, IOCallback cb)
 {
-    KUMA_INFOTRACE("IocpPoll::registerFd, fd=" << fd << ", events=" << events);
+    KM_INFOTRACE("IocpPoll::registerFd, fd=" << fd << ", events=" << events);
     if (CreateIoCompletionPort((HANDLE)fd, hCompPort_, (ULONG_PTR)fd, 0) == NULL) {
-        return KMError::POLL_ERROR;
+        return Result::POLL_ERROR;
     }
     resizePollItems(fd);
     poll_items_[fd].fd = fd;
     poll_items_[fd].cb = std::move(cb);
-    return KMError::NOERR;
+    return Result::OK;
 }
 
-KMError IocpPoll::unregisterFd(SOCKET_FD fd)
+Result IocpPoll::unregisterFd(SOCKET_FD fd)
 {
-    KUMA_INFOTRACE("IocpPoll::unregisterFd, fd="<<fd);
+    KM_INFOTRACE("IocpPoll::unregisterFd, fd="<<fd);
     SOCKET_FD max_fd = poll_items_.size() - 1;
     if (fd < 0 || -1 == max_fd || fd > max_fd) {
-        KUMA_WARNTRACE("IocpPoll::unregisterFd, failed, max_fd=" << max_fd);
-        return KMError::INVALID_PARAM;
+        KM_WARNTRACE("IocpPoll::unregisterFd, failed, max_fd=" << max_fd);
+        return Result::INVALID_PARAM;
     }
     if (fd == max_fd) {
         poll_items_.pop_back();
@@ -94,15 +94,15 @@ KMError IocpPoll::unregisterFd(SOCKET_FD fd)
         poll_items_[fd].fd = INVALID_FD;
     }
     
-    return KMError::NOERR;
+    return Result::OK;
 }
 
-KMError IocpPoll::updateFd(SOCKET_FD fd, KMEvent events)
+Result IocpPoll::updateFd(SOCKET_FD fd, KMEvent events)
 {
-    return KMError::NOT_SUPPORTED;
+    return Result::NOT_SUPPORTED;
 }
 
-KMError IocpPoll::wait(uint32_t wait_ms)
+Result IocpPoll::wait(uint32_t wait_ms)
 {
     OVERLAPPED_ENTRY entries[128];
     ULONG count = 0;
@@ -122,10 +122,10 @@ KMError IocpPoll::wait(uint32_t wait_ms)
     else {
         auto err = ::GetLastError();
         if (err != WAIT_TIMEOUT) {
-            KUMA_ERRTRACE("IocpPoll::wait, err="<<err);
+            KM_ERRTRACE("IocpPoll::wait, err="<<err);
         }
     }
-    return KMError::NOERR;
+    return Result::OK;
 }
 
 void IocpPoll::notify()
@@ -139,4 +139,4 @@ IOPoll* createIocpPoll() {
     return new IocpPoll();
 }
 
-KUMA_NS_END
+KEV_NS_END

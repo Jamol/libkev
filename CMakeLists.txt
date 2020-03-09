@@ -46,7 +46,7 @@ elseif (CMAKE_SYSTEM_NAME MATCHES "Android")
 endif ()
 
 if (CMAKE_SYSTEM_NAME MATCHES "Windows")
-    #add_definitions(-DKUMA_EXPORTS)
+    #add_definitions(-DKEV_EXPORTS)
     add_definitions(-DNOMINMAX -DWIN32_LEAN_AND_MEAN)
     add_definitions(-D_WINDOWS -D_LIB)
     add_definitions(-D_UNICODE -DUNICODE)

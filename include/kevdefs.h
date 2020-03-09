@@ -19,35 +19,54 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#ifndef __KUMADEFS_H__
-#define __KUMADEFS_H__
+#ifndef __KEVDEFS_H__
+#define __KEVDEFS_H__
 
 #include "kmconf.h"
 
-#ifdef KUMA_OS_MAC
-# define KUMA_NS_BEGIN   namespace kuma {;
-#else
-# define KUMA_NS_BEGIN   namespace kuma {
-#endif
-#define KUMA_NS_END     }
-#define KUMA_NS_USING   using namespace kuma;
+#include <functional>
 
-KUMA_NS_BEGIN
+#ifdef KUMA_OS_MAC
+# define KEV_NS_BEGIN   namespace kev {;
+#else
+# define KEV_NS_BEGIN   namespace kev {
+#endif
+#define KEV_NS_END     }
+#define KEV_NS_USING   using namespace kev;
+
+KEV_NS_BEGIN
 
 #ifdef KUMA_OS_WIN
 # ifdef KUMA_EXPORTS
-#  define KUMA_API __declspec(dllexport)
+#  define KEV_API __declspec(dllexport)
 # else
-#  define KUMA_API __declspec(dllimport)
+#  define KEV_API __declspec(dllimport)
 # endif
-# undef KUMA_API
-# define KUMA_API
+# undef KEV_API
+# define KEV_API
 #else
-# define KUMA_API
+# define KEV_API
 #endif
 
-enum class KMError : int {
-    NOERR               = 0,
+#ifdef KUMA_OS_WIN
+using SOCKET_FD = uintptr_t;
+const SOCKET_FD INVALID_FD = (SOCKET_FD)~0;
+#else
+using SOCKET_FD = int;
+const SOCKET_FD INVALID_FD = ((SOCKET_FD)-1);
+#endif
+
+using KMEvent = uint32_t;
+using IOCallback = std::function<void(KMEvent, void*, size_t)>;
+
+const uint32_t kEventRead       = 1;
+const uint32_t kEventWrite      = (1 << 1);
+const uint32_t kEventError      = (1 << 2);
+const uint32_t kEventNetwork    = (kEventRead | kEventWrite | kEventError);
+
+
+enum class Result : int {
+    OK                  = 0,
     FAILED              = -1,
     FATAL               = -2,
     REJECTED            = -3,
@@ -72,28 +91,14 @@ enum class KMError : int {
     DESTROYED           = -699
 };
 
-enum class HttpEvent : int {
-    HEADER_COMPLETE,
-    COMPLETE,
-    HTTP_ERROR
-};
-
-typedef enum {
-    SSL_NONE                    = 0,
-    SSL_ENABLE                  = 0x01,
-    SSL_ALLOW_EXPIRED_CERT      = 0x02,
-    SSL_ALLOW_INVALID_CERT_CN   = 0x04,
-    SSL_ALLOW_UNTRUSTED_CERT    = 0x08,
-    SSL_ALLOW_EXPIRED_ROOT      = 0x10,
-    SSL_ALLOW_ANY_ROOT          = 0x20,
-    SSL_ALLOW_REVOKED_CERT      = 0x40,
-    SSL_ALLOW_SELF_SIGNED_CERT  = 0x80,
-    SSL_VERIFY_HOST_NAME        = 0x1000
-}SslFlag;
-
-enum class SslRole {
-    CLIENT,
-    SERVER
+enum class PollType {
+    NONE,
+    POLL,
+    EPOLL,
+    KQUEUE,
+    SELECT,
+    IOCP,
+    WINDOW
 };
 
 enum class TimerMode {
@@ -101,7 +106,6 @@ enum class TimerMode {
     REPEATING
 };
 
-#define UDP_FLAG_MULTICAST  1
 
 #ifdef KUMA_OS_WIN
 struct iovec {
@@ -110,6 +114,6 @@ struct iovec {
 };
 #endif
 
-KUMA_NS_END
+KEV_NS_END
 
 #endif

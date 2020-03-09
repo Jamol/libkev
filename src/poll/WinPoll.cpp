@@ -22,13 +22,13 @@
 #include "IOPoll.h"
 #include "util/kmtrace.h"
 
-KUMA_NS_BEGIN
+KEV_NS_BEGIN
 
 #define WM_SOCKET_NOTIFY		0x0373
 
 #define WM_POLLER_NOTIFY		WM_USER+101
 
-#define KM_WIN_CLASS_NAME		"kuma_win_class_name"
+#define KM_WIN_CLASS_NAME		"kev_win_class_name"
 
 class WinPoll : public IOPoll
 {
@@ -37,10 +37,10 @@ public:
     ~WinPoll();
     
     bool init();
-    KMError registerFd(SOCKET_FD fd, uint32_t events, IOCallback cb);
-    KMError unregisterFd(SOCKET_FD fd);
-    KMError updateFd(SOCKET_FD fd, uint32_t events);
-    KMError wait(uint32_t wait_ms);
+    Result registerFd(SOCKET_FD fd, uint32_t events, IOCallback cb);
+    Result unregisterFd(SOCKET_FD fd);
+    Result updateFd(SOCKET_FD fd, uint32_t events);
+    Result wait(uint32_t wait_ms);
     void notify();
     PollType getType() const { return PollType::WIN; }
     bool isLevelTriggered() const { return false; }
@@ -91,13 +91,13 @@ bool WinPoll::init()
 uint32_t WinPoll::get_events(uint32_t kuma_events)
 {
     uint32_t ev = 0;
-    if(kuma_events & KUMA_EV_READ) {
+    if(kuma_events & kEventRead) {
         ev |= FD_READ;
     }
-    if(kuma_events & KUMA_EV_WRITE) {
+    if(kuma_events & kEventWrite) {
         ev |= FD_WRITE;
     }
-    if(kuma_events & KUMA_EV_ERROR) {
+    if(kuma_events & kEventError) {
         ev |= FD_CLOSE;
     }
     return ev;
@@ -107,19 +107,19 @@ uint32_t WinPoll::get_kuma_events(uint32_t events)
 {
     uint32_t ev = 0;
     if (events & FD_CONNECT) { // writeable
-        ev |= KUMA_EV_WRITE;
+        ev |= kEventWrite;
     }
     if (events & FD_ACCEPT) { // writeable
-        ev |= KUMA_EV_READ;
+        ev |= kEventRead;
     }
     if(events & FD_READ) {
-        ev |= KUMA_EV_READ;
+        ev |= kEventRead;
     }
     if(events & FD_WRITE) {
-        ev |= KUMA_EV_WRITE;
+        ev |= kEventWrite;
     }
     if(events & FD_CLOSE) {
-        ev |= KUMA_EV_ERROR;
+        ev |= kEventError;
     }
     return ev;
 }
@@ -131,23 +131,23 @@ void WinPoll::resizePollItems(SOCKET_FD fd)
     }
 }
 
-KMError WinPoll::registerFd(SOCKET_FD fd, uint32_t events, IOCallback cb)
+Result WinPoll::registerFd(SOCKET_FD fd, uint32_t events, IOCallback cb)
 {
-    KUMA_INFOTRACE("WinPoll::registerFd, fd=" << fd << ", events=" << events);
+    KM_INFOTRACE("WinPoll::registerFd, fd=" << fd << ", events=" << events);
     resizePollItems(fd);
     poll_items_[fd].fd = fd;
     poll_items_[fd].cb = std::move(cb);
     WSAAsyncSelect(fd, hwnd_, WM_SOCKET_NOTIFY, get_events(events) | FD_CONNECT);
-    return KMError::NOERR;
+    return Result::OK;
 }
 
-KMError WinPoll::unregisterFd(SOCKET_FD fd)
+Result WinPoll::unregisterFd(SOCKET_FD fd)
 {
-    KUMA_INFOTRACE("WinPoll::unregisterFd, fd="<<fd);
+    KM_INFOTRACE("WinPoll::unregisterFd, fd="<<fd);
     SOCKET_FD max_fd = poll_items_.size() - 1;
     if (fd < 0 || -1 == max_fd || fd > max_fd) {
-        KUMA_WARNTRACE("WinPoll::unregisterFd, failed, max_fd=" << max_fd);
-        return KMError::INVALID_PARAM;
+        KM_WARNTRACE("WinPoll::unregisterFd, failed, max_fd=" << max_fd);
+        return Result::INVALID_PARAM;
     }
     if (fd == max_fd) {
         poll_items_.pop_back();
@@ -156,31 +156,31 @@ KMError WinPoll::unregisterFd(SOCKET_FD fd)
         poll_items_[fd].fd = INVALID_FD;
     }
     WSAAsyncSelect(fd, hwnd_, 0, 0);
-    return KMError::NOERR;
+    return Result::OK;
 }
 
-KMError WinPoll::updateFd(SOCKET_FD fd, uint32_t events)
+Result WinPoll::updateFd(SOCKET_FD fd, uint32_t events)
 {
     SOCKET_FD max_fd = poll_items_.size() - 1;
     if (fd < 0 || -1 == max_fd || fd > max_fd) {
-        KUMA_WARNTRACE("WinPoll::updateFd, failed, fd="<<fd<<", max_fd=" << max_fd);
-        return KMError::INVALID_PARAM;
+        KM_WARNTRACE("WinPoll::updateFd, failed, fd="<<fd<<", max_fd=" << max_fd);
+        return Result::INVALID_PARAM;
     }
     if(poll_items_[fd].fd != fd) {
-        KUMA_WARNTRACE("WinPoll::updateFd, failed, fd="<<fd<<", fd1="<<poll_items_[fd].fd);
-        return KMError::INVALID_PARAM;
+        KM_WARNTRACE("WinPoll::updateFd, failed, fd="<<fd<<", fd1="<<poll_items_[fd].fd);
+        return Result::INVALID_PARAM;
     }
-    return KMError::NOERR;
+    return Result::OK;
 }
 
-KMError WinPoll::wait(uint32_t wait_ms)
+Result WinPoll::wait(uint32_t wait_ms)
 {
     MSG msg;
     if (GetMessage(&msg, NULL, 0, 0)) {
         TranslateMessage(&msg);
         DispatchMessage(&msg);
     }
-    return KMError::NOERR;
+    return Result::OK;
 }
 
 void WinPoll::notify()
@@ -253,4 +253,4 @@ static void uninitWinClass()
 
 //WBX_Init_Object g_init_obj(poller_load, poller_unload);
 
-KUMA_NS_END
+KEV_NS_END

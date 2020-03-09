@@ -25,7 +25,7 @@
 #include "util/util.h"
 #include "Notifier.h"
 
-KUMA_NS_BEGIN
+KEV_NS_BEGIN
 
 #include <errno.h>
 #include <sys/eventfd.h>
@@ -59,7 +59,7 @@ public:
         return efd_;
     }
     
-    KMError onEvent(KMEvent ev) override {
+    Result onEvent(KMEvent ev) override {
         uint64_t count = 0;
         ssize_t ret = 0;
         do {
@@ -67,7 +67,7 @@ public:
             //eventfd_read(efd_, &val);
             ret = read(efd_, &count, sizeof(count));
         } while (ret < 0 && errno == EINTR);
-        return KMError::NOERR;
+        return Result::OK;
     }
 private:
     void cleanup() {
@@ -80,6 +80,6 @@ private:
     int efd_ { -1 };
 };
 
-KUMA_NS_END
+KEV_NS_END
 
 #endif

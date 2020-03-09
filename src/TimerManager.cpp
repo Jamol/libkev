@@ -24,15 +24,15 @@
 
 #include <string.h>
 
-using namespace kuma;
+KEV_NS_USING
 
-KUMA_NS_BEGIN
+KEV_NS_BEGIN
 
 int find_first_set(unsigned int b);
 TICK_COUNT_TYPE get_tick_count_ms();
 TICK_COUNT_TYPE calc_time_elapse_delta_ms(TICK_COUNT_TYPE now_tick, TICK_COUNT_TYPE& start_tick);
 
-KUMA_NS_END
+KEV_NS_END
 
 //////////////////////////////////////////////////////////////////////////
 // Timer::Impl

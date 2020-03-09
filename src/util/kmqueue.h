@@ -15,11 +15,10 @@
 
 #pragma once
 
-#include "kmdefs.h"
 #include <memory>
 #include <atomic>
 
-KUMA_NS_BEGIN
+namespace kev {
 
 const size_t kPaddingSize = 128;
 ///
@@ -247,4 +246,4 @@ protected:
     std::atomic<size_t> count_{0};
 };
     
-KUMA_NS_END
+} // namespace kev

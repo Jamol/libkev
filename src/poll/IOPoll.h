@@ -16,8 +16,7 @@
 #ifndef __IOPoll_H__
 #define __IOPoll_H__
 
-#include "kmdefs.h"
-#include "evdefs.h"
+#include "kevdefs.h"
 
 #ifdef KUMA_OS_WIN
 # include <Ws2tcpip.h>
@@ -69,7 +68,7 @@
 #include <list>
 #include <vector>
 
-KUMA_NS_BEGIN
+KEV_NS_BEGIN
 
 struct PollItem
 {
@@ -94,10 +93,10 @@ public:
     virtual ~IOPoll() {}
     
     virtual bool init() = 0;
-    virtual KMError registerFd(SOCKET_FD fd, KMEvent events, IOCallback cb) = 0;
-    virtual KMError unregisterFd(SOCKET_FD fd) = 0;
-    virtual KMError updateFd(SOCKET_FD fd, KMEvent events) = 0;
-    virtual KMError wait(uint32_t wait_time_ms) = 0;
+    virtual Result registerFd(SOCKET_FD fd, KMEvent events, IOCallback cb) = 0;
+    virtual Result unregisterFd(SOCKET_FD fd) = 0;
+    virtual Result updateFd(SOCKET_FD fd, KMEvent events) = 0;
+    virtual Result wait(uint32_t wait_time_ms) = 0;
     virtual void notify() = 0;
     virtual PollType getType() const = 0;
     virtual bool isLevelTriggered() const = 0;
@@ -116,6 +115,6 @@ protected:
     PollItemVector  poll_items_;
 };
 
-KUMA_NS_END
+KEV_NS_END
 
 #endif

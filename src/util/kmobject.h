@@ -1,20 +1,19 @@
 //
 //  kmobject.h
-//  kuma
+//  kev
 //
 //  Created by Fengping Bao <jamol@live.com> on 7/17/16.
-//  Copyright © 2016 kuma. All rights reserved.
+//  Copyright © 2016 kev. All rights reserved.
 //
 
 #ifndef __KMObject_H__
 #define __KMObject_H__
 
-#include "kmdefs.h"
 #include <string>
 #include <atomic>
 #include <sstream>
 
-KUMA_NS_BEGIN
+namespace kev {
 
 class KMObject
 {
@@ -42,6 +41,6 @@ do{ \
     objKey_ = ss.str();\
 }while(0)
 
-KUMA_NS_END
+} // namespace kev
 
 #endif /* __KMObject_H__ */

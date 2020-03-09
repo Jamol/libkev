@@ -24,7 +24,7 @@
 #include "TimerManager.h"
 #include "util/kmtrace.h"
 
-KUMA_NS_BEGIN
+KEV_NS_BEGIN
 
 template <typename Impl>
 struct ImplHelper {
@@ -144,17 +144,17 @@ bool EventLoop::isPollLT() const
     return  pimpl_->isPollLT();
 }
 
-KMError EventLoop::registerFd(SOCKET_FD fd, uint32_t events, IOCallback cb)
+Result EventLoop::registerFd(SOCKET_FD fd, uint32_t events, IOCallback cb)
 {
     return pimpl_->registerFd(fd, events, std::move(cb));
 }
 
-KMError EventLoop::updateFd(SOCKET_FD fd, uint32_t events)
+Result EventLoop::updateFd(SOCKET_FD fd, uint32_t events)
 {
     return pimpl_->updateFd(fd, events);
 }
 
-KMError EventLoop::unregisterFd(SOCKET_FD fd, bool close_fd)
+Result EventLoop::unregisterFd(SOCKET_FD fd, bool close_fd)
 {
     return pimpl_->unregisterFd(fd, close_fd);
 }
@@ -184,22 +184,22 @@ bool EventLoop::inSameThread() const
     return pimpl_->inSameThread();
 }
 
-KMError EventLoop::sync(Task task)
+Result EventLoop::sync(Task task)
 {
     return pimpl_->sync(std::move(task));
 }
 
-KMError EventLoop::async(Task task, Token *token, const char *debugStr)
+Result EventLoop::async(Task task, Token *token, const char *debugStr)
 {
     return pimpl_->async(std::move(task), token?token->pimpl():nullptr, debugStr);
 }
 
-KMError EventLoop::post(Task task, Token *token, const char *debugStr)
+Result EventLoop::post(Task task, Token *token, const char *debugStr)
 {
     return pimpl_->post(std::move(task), token?token->pimpl():nullptr, debugStr);
 }
 
-KMError EventLoop::postDelayed(uint32_t delay_ms, Task task, Token *token, const char *debugStr)
+Result EventLoop::postDelayed(uint32_t delay_ms, Task task, Token *token, const char *debugStr)
 {
     return pimpl_->postDelayed(delay_ms, std::move(task), token?token->pimpl():nullptr, debugStr);
 }
@@ -308,4 +308,4 @@ void setLogCallback(LogCallback cb)
     setTraceFunc(cb);
 }
 
-KUMA_NS_END
+KEV_NS_END

@@ -25,7 +25,7 @@
 
 #include <sys/epoll.h>
 
-KUMA_NS_BEGIN
+KEV_NS_BEGIN
 
 #define MAX_EPOLL_FDS   5000
 #define MAX_EVENT_NUM   500
@@ -37,10 +37,10 @@ public:
     ~EPoll();
 
     bool init();
-    KMError registerFd(SOCKET_FD fd, KMEvent events, IOCallback cb);
-    KMError unregisterFd(SOCKET_FD fd);
-    KMError updateFd(SOCKET_FD fd, KMEvent events);
-    KMError wait(uint32_t wait_time_ms);
+    Result registerFd(SOCKET_FD fd, KMEvent events, IOCallback cb);
+    Result unregisterFd(SOCKET_FD fd);
+    Result updateFd(SOCKET_FD fd, KMEvent events);
+    Result wait(uint32_t wait_time_ms);
     void notify();
     PollType getType() const { return PollType::EPOLL; }
     bool isLevelTriggered() const { return false; }
@@ -79,7 +79,7 @@ bool EPoll::init()
             return false;
         }
         IOCallback cb ([this](KMEvent ev, void*, size_t) { notifier_->onEvent(ev); });
-        registerFd(notifier_->getReadFD(), KUMA_EV_READ|KUMA_EV_ERROR, std::move(cb));
+        registerFd(notifier_->getReadFD(), kEventRead | kEventError, std::move(cb));
     }
     return true;
 }
@@ -87,13 +87,13 @@ bool EPoll::init()
 uint32_t EPoll::get_events(KMEvent kuma_events)
 {
     uint32_t ev = EPOLLET;//EPOLLIN | EPOLLOUT | EPOLLERR | EPOLLHUP | EPOLLET;
-    if(kuma_events & KUMA_EV_READ) {
+    if(kuma_events & kEventRead) {
         ev |= EPOLLIN;
     }
-    if(kuma_events & KUMA_EV_WRITE) {
+    if(kuma_events & kEventWrite) {
         ev |= EPOLLOUT;
     }
-    if(kuma_events & KUMA_EV_ERROR) {
+    if(kuma_events & kEventError) {
         ev |= EPOLLERR | EPOLLHUP;
     }
     return ev;
@@ -103,21 +103,21 @@ KMEvent EPoll::get_kuma_events(uint32_t events)
 {
     KMEvent ev = 0;
     if(events & EPOLLIN) {
-        ev |= KUMA_EV_READ;
+        ev |= kEventRead;
     }
     if(events & EPOLLOUT) {
-        ev |= KUMA_EV_WRITE;
+        ev |= kEventWrite;
     }
     if(events & (EPOLLERR | EPOLLHUP)) {
-        ev |= KUMA_EV_ERROR;
+        ev |= kEventError;
     }
     return ev;
 }
 
-KMError EPoll::registerFd(SOCKET_FD fd, KMEvent events, IOCallback cb)
+Result EPoll::registerFd(SOCKET_FD fd, KMEvent events, IOCallback cb)
 {
     if (fd < 0) {
-        return KMError::INVALID_PARAM;
+        return Result::INVALID_PARAM;
     }
     resizePollItems(fd);
     int epoll_op = EPOLL_CTL_ADD;
@@ -131,21 +131,21 @@ KMError EPoll::registerFd(SOCKET_FD fd, KMEvent events, IOCallback cb)
     evt.data.ptr = (void*)(long)fd;
     evt.events = get_events(events);//EPOLLIN | EPOLLOUT | EPOLLERR | EPOLLHUP | EPOLLET;
     if(epoll_ctl(epoll_fd_, epoll_op, fd, &evt) < 0) {
-        KUMA_ERRTRACE("EPoll::registerFd error, fd=" << fd << ", ev=" << evt.events << ", errno=" << errno);
-        return KMError::FAILED;
+        KM_ERRTRACE("EPoll::registerFd error, fd=" << fd << ", ev=" << evt.events << ", errno=" << errno);
+        return Result::FAILED;
     }
-    KUMA_INFOTRACE("EPoll::registerFd, fd=" << fd << ", ev=" << evt.events);
+    KM_INFOTRACE("EPoll::registerFd, fd=" << fd << ", ev=" << evt.events);
 
-    return KMError::NOERR;
+    return Result::OK;
 }
 
-KMError EPoll::unregisterFd(SOCKET_FD fd)
+Result EPoll::unregisterFd(SOCKET_FD fd)
 {
     int max_fd = int(poll_items_.size() - 1);
-    KUMA_INFOTRACE("EPoll::unregisterFd, fd="<<fd<<", max_fd="<<max_fd);
+    KM_INFOTRACE("EPoll::unregisterFd, fd="<<fd<<", max_fd="<<max_fd);
     if (fd < 0 || fd > max_fd) {
-        KUMA_WARNTRACE("EPoll::unregisterFd, failed, max_fd=" << max_fd);
-        return KMError::INVALID_PARAM;
+        KM_WARNTRACE("EPoll::unregisterFd, failed, max_fd=" << max_fd);
+        return Result::INVALID_PARAM;
     }
     epoll_ctl(epoll_fd_, EPOLL_CTL_DEL, fd, NULL);
     if(fd < max_fd) {
@@ -153,34 +153,34 @@ KMError EPoll::unregisterFd(SOCKET_FD fd)
     } else if (fd == max_fd) {
         poll_items_.pop_back();
     }
-    return KMError::NOERR;
+    return Result::OK;
 }
 
-KMError EPoll::updateFd(SOCKET_FD fd, KMEvent events)
+Result EPoll::updateFd(SOCKET_FD fd, KMEvent events)
 {
     if(fd < 0 || fd >= poll_items_.size() || INVALID_FD == poll_items_[fd].fd) {
-        return KMError::FAILED;
+        return Result::FAILED;
     }
     struct epoll_event evt = {0};
     evt.data.ptr = (void*)(long)fd;
     evt.events = get_events(events);
     if(epoll_ctl(epoll_fd_, EPOLL_CTL_MOD, fd, &evt) < 0) {
-        KUMA_ERRTRACE("EPoll::updateFd error, fd="<<fd<<", errno="<<errno);
-        return KMError::FAILED;
+        KM_ERRTRACE("EPoll::updateFd error, fd="<<fd<<", errno="<<errno);
+        return Result::FAILED;
     }
     poll_items_[fd].events = events;
-    return KMError::NOERR;
+    return Result::OK;
 }
 
-KMError EPoll::wait(uint32_t wait_ms)
+Result EPoll::wait(uint32_t wait_ms)
 {
     struct epoll_event events[MAX_EVENT_NUM];
     int nfds = epoll_wait(epoll_fd_, events, MAX_EVENT_NUM , wait_ms);
     if (nfds < 0) {
         if(errno != EINTR) {
-            KUMA_ERRTRACE("EPoll::wait, errno="<<errno);
+            KM_ERRTRACE("EPoll::wait, errno="<<errno);
         }
-        KUMA_INFOTRACE("EPoll::wait, nfds="<<nfds<<", errno="<<errno);
+        KM_INFOTRACE("EPoll::wait, nfds="<<nfds<<", errno="<<errno);
     } else {
         for (int i=0; i<nfds; ++i) {
             SOCKET_FD fd = (SOCKET_FD)(long)events[i].data.ptr;
@@ -194,7 +194,7 @@ KMError EPoll::wait(uint32_t wait_ms)
             }
         }
     }
-    return KMError::NOERR;
+    return Result::OK;
 }
 
 void EPoll::notify()
@@ -206,4 +206,4 @@ IOPoll* createEPoll() {
     return new EPoll();
 }
 
-KUMA_NS_END
+KEV_NS_END

@@ -19,11 +19,10 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#ifndef __kuma_util_h__
-#define __kuma_util_h__
+#ifndef __kev_util_h__
+#define __kev_util_h__
 
-#include "kmdefs.h"
-#include "evdefs.h" // for SOCKET_FD
+#include "kevdefs.h"
 
 #ifdef KUMA_OS_WIN
 # include <Ws2tcpip.h>
@@ -44,7 +43,7 @@
 struct addrinfo;
 struct sockaddr;
 
-KUMA_NS_BEGIN
+KEV_NS_BEGIN
 
 #ifdef KUMA_OS_WIN
 # define snprintf(d, dl, fmt, ...) _snprintf_s(d, dl, _TRUNCATE, fmt, ##__VA_ARGS__)
@@ -210,18 +209,18 @@ inline void encode_u16(uint8_t *dst, uint32_t u)
 int generateRandomBytes(uint8_t *buf, int len);
 
 extern "C" {
-    KUMA_API int km_resolve_2_ip(const char* host_name, char *ip_buf, int ip_buf_len, int ipv = 0);
-    KUMA_API int km_parse_address(const char* addr,
+    KEV_API int km_resolve_2_ip(const char* host_name, char *ip_buf, int ip_buf_len, int ipv = 0);
+    KEV_API int km_parse_address(const char* addr,
                          char* proto, int proto_len,
                          char* host, int  host_len, unsigned short* port);
-    KUMA_API int km_set_sock_addr(const char* addr, unsigned short port,
+    KEV_API int km_set_sock_addr(const char* addr, unsigned short port,
                          addrinfo* hints, sockaddr * sk_addr,
                          unsigned int sk_addr_len);
-    KUMA_API int km_get_sock_addr(const sockaddr * sk_addr, unsigned int sk_addr_len,
+    KEV_API int km_get_sock_addr(const sockaddr * sk_addr, unsigned int sk_addr_len,
                          char* addr, unsigned int addr_len, unsigned short* port);
-    KUMA_API bool km_is_ipv6_address(const char* addr);
-    KUMA_API bool km_is_ip_address(const char* addr);
-    KUMA_API bool km_is_mcast_address(const char* addr);
+    KEV_API bool km_is_ipv6_address(const char* addr);
+    KEV_API bool km_is_ip_address(const char* addr);
+    KEV_API bool km_is_mcast_address(const char* addr);
 }
 
 int km_get_sock_addr(const sockaddr *addr, size_t addr_len, std::string &ip, uint16_t *port);
@@ -229,14 +228,14 @@ int km_get_sock_addr(const sockaddr_storage &addr, std::string &ip, uint16_t *po
 int km_set_addr_port(uint16_t port, sockaddr_storage &addr);
 int km_get_addr_length(const sockaddr_storage &addr);
 
-inline bool km_is_fatal_error(KMError err)
+inline bool km_is_fatal_error(Result err)
 {
-    return err != KMError::NOERR && err != KMError::AGAIN;
+    return err != Result::OK && err != Result::AGAIN;
 }
 
 std::string getDateTimeString(bool utc);
 void setCurrentThreadName(const char* name);
 
-KUMA_NS_END
+KEV_NS_END
 
 #endif

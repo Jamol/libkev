@@ -1,14 +1,14 @@
 //
 //  skutils.h
-//  kuma
+//  kev
 //
 //  Created by Fengping Bao <jamol@live.com> on 2/2/20.
-//  Copyright © 2014-2020 kuma. All rights reserved.
+//  Copyright © 2014-2020 kev. All rights reserved.
 //
 
 #pragma once
 
-#include "evdefs.h"
+#include "kevdefs.h"
 
 #ifdef KUMA_OS_WIN
 # include <Ws2tcpip.h>
@@ -19,7 +19,7 @@
 # include <sys/socket.h>
 #endif
 
-KUMA_NS_BEGIN
+KEV_NS_BEGIN
 
 
 #ifdef KUMA_OS_WIN
@@ -210,4 +210,4 @@ public:
     }
 };
 
-KUMA_NS_END
+KEV_NS_END

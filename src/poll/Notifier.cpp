@@ -19,7 +19,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#include "kmdefs.h"
+#include "kevdefs.h"
 
 #ifdef KUMA_OS_WIN
 # include <Ws2tcpip.h>
@@ -68,7 +68,7 @@
 #include "SocketNotifier.h"
 #endif
 
-using namespace kuma;
+KEV_NS_USING
 
 NotifierPtr Notifier::createNotifier() {
 #ifdef KUMA_OS_LINUX

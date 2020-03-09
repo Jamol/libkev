@@ -1,6 +1,6 @@
 //
 //  kmtrace.h
-//  kuma
+//  kev
 //
 //  Created by Fengping Bao <jamol@live.com> on 11/12/14.
 //  Copyright (c) 2014-2019. All rights reserved.
@@ -13,44 +13,42 @@
 #include <sstream>
 #include <assert.h>
 
-namespace kuma {
+namespace kev {
 
-#define KUMA_TRACE_TAG  "KUMA"
-
-#define KUMA_TRACE(l, x) \
+#define KM_TRACE(l, x) \
     do{ \
-        if (l <= kuma::getTraceLevel()) {\
+        if (l <= kev::getTraceLevel()) {\
             std::stringstream ss; \
             ss<<x; \
-            kuma::traceWrite(l, ss.str()); \
+            kev::traceWrite(l, ss.str()); \
         }\
     }while(0)
     
-#define KUMA_XTRACE(l, x) \
+#define KM_XTRACE(l, x) \
     do{ \
-        if (l <= kuma::getTraceLevel()) {\
+        if (l <= kev::getTraceLevel()) {\
             std::stringstream ss; \
             ss<<getObjKey()<<":: "<<x; \
-            kuma::traceWrite(l, ss.str()); \
+            kev::traceWrite(l, ss.str()); \
         }\
     }while(0)
     
-#define KUMA_INFOXTRACE(x)  KUMA_XTRACE(kuma::TRACE_LEVEL_INFO, x)
-#define KUMA_WARNXTRACE(x)  KUMA_XTRACE(kuma::TRACE_LEVEL_WARN, x)
-#define KUMA_ERRXTRACE(x)   KUMA_XTRACE(kuma::TRACE_LEVEL_ERROR, x)
-#define KUMA_DBGXTRACE(x)   KUMA_XTRACE(kuma::TRACE_LEVEL_DEBUG, x)
+#define KM_INFOXTRACE(x)  KM_XTRACE(kev::TRACE_LEVEL_INFO, x)
+#define KM_WARNXTRACE(x)  KM_XTRACE(kev::TRACE_LEVEL_WARN, x)
+#define KM_ERRXTRACE(x)   KM_XTRACE(kev::TRACE_LEVEL_ERROR, x)
+#define KM_DBGXTRACE(x)   KM_XTRACE(kev::TRACE_LEVEL_DEBUG, x)
 
-#define KUMA_INFOTRACE(x)   KUMA_TRACE(kuma::TRACE_LEVEL_INFO, x)
-#define KUMA_WARNTRACE(x)   KUMA_TRACE(kuma::TRACE_LEVEL_WARN, x)
-#define KUMA_ERRTRACE(x)    KUMA_TRACE(kuma::TRACE_LEVEL_ERROR, x)
-#define KUMA_DBGTRACE(x)    KUMA_TRACE(kuma::TRACE_LEVEL_DEBUG, x)
+#define KM_INFOTRACE(x)   KM_TRACE(kev::TRACE_LEVEL_INFO, x)
+#define KM_WARNTRACE(x)   KM_TRACE(kev::TRACE_LEVEL_WARN, x)
+#define KM_ERRTRACE(x)    KM_TRACE(kev::TRACE_LEVEL_ERROR, x)
+#define KM_DBGTRACE(x)    KM_TRACE(kev::TRACE_LEVEL_DEBUG, x)
 
-#define KUMA_INFOTRACE_THIS(x)   KUMA_TRACE(kuma::TRACE_LEVEL_INFO, x<<", this="<<this)
-#define KUMA_WARNTRACE_THIS(x)   KUMA_TRACE(kuma::TRACE_LEVEL_WARN, x<<", this="<<this)
-#define KUMA_ERRTRACE_THIS(x)    KUMA_TRACE(kuma::TRACE_LEVEL_ERROR, x<<", this="<<this)
-#define KUMA_DBGTRACE_THIS(x)    KUMA_TRACE(kuma::TRACE_LEVEL_DEBUG, x<<", this="<<this)
+#define KM_INFOTRACE_THIS(x)   KM_TRACE(kev::TRACE_LEVEL_INFO, x<<", this="<<this)
+#define KM_WARNTRACE_THIS(x)   KM_TRACE(kev::TRACE_LEVEL_WARN, x<<", this="<<this)
+#define KM_ERRTRACE_THIS(x)    KM_TRACE(kev::TRACE_LEVEL_ERROR, x<<", this="<<this)
+#define KM_DBGTRACE_THIS(x)    KM_TRACE(kev::TRACE_LEVEL_DEBUG, x<<", this="<<this)
 
-#define KUMA_ASSERT(x) assert(x)
+#define KM_ASSERT(x) assert(x)
 
 const int TRACE_LEVEL_ERROR  = 1;
 const int TRACE_LEVEL_WARN   = 2;
@@ -68,4 +66,4 @@ void setTraceFunc(TraceFunc func);
 void setTraceLevel(int level);
 int getTraceLevel();
 
-} // namespace kuma
+} // namespace kev

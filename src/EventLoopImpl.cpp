@@ -27,7 +27,7 @@
 #include <thread>
 #include <condition_variable>
 
-KUMA_NS_BEGIN
+KEV_NS_BEGIN
 
 IOPoll* createIOPoll(PollType poll_type);
 
@@ -81,33 +81,33 @@ bool EventLoop::Impl::isPollLT() const
     return false;
 }
 
-KMError EventLoop::Impl::registerFd(SOCKET_FD fd, uint32_t events, IOCallback cb)
+Result EventLoop::Impl::registerFd(SOCKET_FD fd, uint32_t events, IOCallback cb)
 {
     if(inSameThread()) {
         return poll_->registerFd(fd, events, std::move(cb));
     }
     return async([=, cb=std::move(cb)] () mutable {
         auto ret = poll_->registerFd(fd, events, cb);
-        if(ret != KMError::NOERR) {
+        if(ret != Result::OK) {
             return ;
         }
     });
 }
 
-KMError EventLoop::Impl::updateFd(SOCKET_FD fd, uint32_t events)
+Result EventLoop::Impl::updateFd(SOCKET_FD fd, uint32_t events)
 {
     if(inSameThread()) {
         return poll_->updateFd(fd, events);
     }
     return async([=] {
         auto ret = poll_->updateFd(fd, events);
-        if(ret != KMError::NOERR) {
+        if(ret != Result::OK) {
             return ;
         }
     });
 }
 
-KMError EventLoop::Impl::unregisterFd(SOCKET_FD fd, bool close_fd)
+Result EventLoop::Impl::unregisterFd(SOCKET_FD fd, bool close_fd)
 {
     if(inSameThread()) {
         auto ret = poll_->unregisterFd(fd);
@@ -122,35 +122,35 @@ KMError EventLoop::Impl::unregisterFd(SOCKET_FD fd, bool close_fd)
                 SKUtils::close(fd);
             }
         });
-        if(KMError::NOERR != ret) {
+        if(Result::OK != ret) {
             return ret;
         }
-        return KMError::NOERR;
+        return Result::OK;
     }
 }
 
-KMError EventLoop::Impl::appendObserver(ObserverCallback cb, EventLoopToken *token)
+Result EventLoop::Impl::appendObserver(ObserverCallback cb, EventLoopToken *token)
 {
     if (token && token->eventLoop().get() != this) {
-        return KMError::INVALID_PARAM;
+        return Result::INVALID_PARAM;
     }
     LockGuard g(obs_mutex_);
     if (stop_loop_) {
-        return KMError::INVALID_STATE;
+        return Result::INVALID_STATE;
     }
     auto obs_node = obs_queue_.enqueue(std::move(cb));
     if (token) {
         token->obs_token_ = obs_node;
         token->observed = true;
     }
-    return KMError::NOERR;
+    return Result::OK;
 }
 
-KMError EventLoop::Impl::removeObserver(EventLoopToken *token)
+Result EventLoop::Impl::removeObserver(EventLoopToken *token)
 {
     if (token) {
         if (token->eventLoop().get() != this) {
-            return KMError::INVALID_STATE;
+            return Result::INVALID_STATE;
         }
         auto node = token->obs_token_.lock();
         if (node) {
@@ -160,12 +160,12 @@ KMError EventLoop::Impl::removeObserver(EventLoopToken *token)
         token->obs_token_.reset();
         token->observed = false;
     }
-    return KMError::NOERR;
+    return Result::OK;
 }
 
 void EventLoop::Impl::appendPendingObject(PendingObject *obj)
 {
-    KUMA_ASSERT(inSameThread());
+    KM_ASSERT(inSameThread());
     if (pending_objects_) {
         obj->next_ = pending_objects_;
         pending_objects_->prev_ = obj;
@@ -175,7 +175,7 @@ void EventLoop::Impl::appendPendingObject(PendingObject *obj)
 
 void EventLoop::Impl::removePendingObject(PendingObject *obj)
 {
-    KUMA_ASSERT(inSameThread());
+    KM_ASSERT(inSameThread());
     if (pending_objects_ == obj) {
         pending_objects_ = obj->next_;
     }
@@ -242,38 +242,38 @@ void EventLoop::Impl::loop(uint32_t max_wait_ms)
             cb(LoopActivity::EXIT);
         }
     }
-    KUMA_INFOXTRACE("loop, stopped");
+    KM_INFOXTRACE("loop, stopped");
 }
 
 void EventLoop::Impl::stop()
 {
-    KUMA_INFOXTRACE("stop");
+    KM_INFOXTRACE("stop");
     stop_loop_ = true;
     wakeup();
 }
 
-KMError EventLoop::Impl::appendTask(Task task, EventLoopToken *token, const char *debugStr)
+Result EventLoop::Impl::appendTask(Task task, EventLoopToken *token, const char *debugStr)
 {
     if (token && token->eventLoop().get() != this) {
-        return KMError::INVALID_PARAM;
+        return Result::INVALID_PARAM;
     }
     std::string dstr{debugStr ? debugStr : ""};
     auto node = std::make_shared<TaskQueue::DLNode>(std::move(task), token, std::move(dstr));
     LockGuard g(task_mutex_);
     if (stop_loop_) {
-        return KMError::INVALID_STATE;
+        return Result::INVALID_STATE;
     }
     task_queue_.enqueue(node);
     if (token) {
         token->appendTaskNode(node);
     }
-    return KMError::NOERR;
+    return Result::OK;
 }
 
-KMError EventLoop::Impl::removeTask(EventLoopToken *token)
+Result EventLoop::Impl::removeTask(EventLoopToken *token)
 {
     if (!token || token->eventLoop().get() != this) {
-        return KMError::INVALID_PARAM;
+        return Result::INVALID_PARAM;
     }
     bool is_running = false;
     {
@@ -294,21 +294,21 @@ KMError EventLoop::Impl::removeTask(EventLoopToken *token)
         task_run_mutex_.lock();
         task_run_mutex_.unlock();
     }
-    return KMError::NOERR;
+    return Result::OK;
 }
 
 
-KMError EventLoop::Impl::appendDelayedTask(uint32_t delay_ms, Task task, EventLoopToken *token, const char *debugStr)
+Result EventLoop::Impl::appendDelayedTask(uint32_t delay_ms, Task task, EventLoopToken *token, const char *debugStr)
 {
     if (token && token->eventLoop().get() != this) {
-        return KMError::INVALID_PARAM;
+        return Result::INVALID_PARAM;
     }
     std::string dstr{debugStr ? debugStr : ""};
     auto node = std::make_shared<DelayedTaskQueue::DLNode>(this, token, std::move(dstr));
     {
         LockGuard g(task_mutex_);
         if (stop_loop_) {
-            return KMError::INVALID_STATE;
+            return Result::INVALID_STATE;
         }
         dtask_queue_.enqueue(node);
         if (token) {
@@ -323,13 +323,13 @@ KMError EventLoop::Impl::appendDelayedTask(uint32_t delay_ms, Task task, EventLo
             removeDelayedTaskNode(node);
         }
     });
-    return KMError::NOERR;
+    return Result::OK;
 }
 
-KMError EventLoop::Impl::removeDelayedTask(EventLoopToken *token)
+Result EventLoop::Impl::removeDelayedTask(EventLoopToken *token)
 {
     if (!token || token->eventLoop().get() != this) {
-        return KMError::INVALID_PARAM;
+        return Result::INVALID_PARAM;
     }
     LockGuard g(task_mutex_);
     for (auto &node : token->dtask_nodes_) {
@@ -339,10 +339,10 @@ KMError EventLoop::Impl::removeDelayedTask(EventLoopToken *token)
         dtask_queue_.remove(node);
     }
     token->dtask_nodes_.clear();
-    return KMError::NOERR;
+    return Result::OK;
 }
 
-KMError EventLoop::Impl::removeDelayedTaskNode(DelayedTaskNodePtr &node)
+Result EventLoop::Impl::removeDelayedTaskNode(DelayedTaskNodePtr &node)
 {
     LockGuard g(task_mutex_);
     auto &dtask_slot = node->element();
@@ -352,10 +352,10 @@ KMError EventLoop::Impl::removeDelayedTaskNode(DelayedTaskNodePtr &node)
         dtask_slot.token = nullptr;
     }
     dtask_queue_.remove(node);
-    return KMError::NOERR;
+    return Result::OK;
 }
 
-KMError EventLoop::Impl::sync(Task task)
+Result EventLoop::Impl::sync(Task task)
 {
     if(inSameThread()) {
         task();
@@ -371,36 +371,36 @@ KMError EventLoop::Impl::sync(Task task)
             lk.unlock();
         });
         auto ret = post(std::move(task_sync));
-        if (ret != KMError::NOERR) {
+        if (ret != Result::OK) {
             return ret;
         }
         std::unique_lock<std::mutex> lk(m);
         cv.wait(lk, [&ready] { return ready; });
     }
-    return KMError::NOERR;
+    return Result::OK;
 }
 
-KMError EventLoop::Impl::async(Task task, EventLoopToken *token, const char *debugStr)
+Result EventLoop::Impl::async(Task task, EventLoopToken *token, const char *debugStr)
 {
     if(inSameThread()) {
         task();
-        return KMError::NOERR;
+        return Result::OK;
     } else {
         return post(std::move(task), token, debugStr);
     }
 }
 
-KMError EventLoop::Impl::post(Task task, EventLoopToken *token, const char *debugStr)
+Result EventLoop::Impl::post(Task task, EventLoopToken *token, const char *debugStr)
 {
     auto ret = appendTask(std::move(task), token, debugStr);
-    if (ret != KMError::NOERR) {
+    if (ret != Result::OK) {
         return ret;
     }
     wakeup();
-    return KMError::NOERR;
+    return Result::OK;
 }
 
-KMError EventLoop::Impl::postDelayed(uint32_t delay_ms, Task task, EventLoopToken *token, const char *debugStr)
+Result EventLoop::Impl::postDelayed(uint32_t delay_ms, Task task, EventLoopToken *token, const char *debugStr)
 {
     return  appendDelayedTask(delay_ms, std::move(task), token, debugStr);
 }
@@ -495,19 +495,24 @@ void EventLoop::Token::Impl::reset()
     }
 }
 
+KEV_NS_END
+
 /////////////////////////////////////////////////////////////////
 //
-IOPoll* createEPoll();
-IOPoll* createVPoll();
-IOPoll* createKQueue();
-IOPoll* createSelectPoll();
-IOPoll* createIocpPoll();
 
 #ifdef KUMA_OS_WIN
 # include <MSWSock.h>
 extern LPFN_CONNECTEX connect_ex;
 extern LPFN_ACCEPTEX accept_ex;
 #endif
+
+KEV_NS_BEGIN
+
+IOPoll* createEPoll();
+IOPoll* createVPoll();
+IOPoll* createKQueue();
+IOPoll* createSelectPoll();
+IOPoll* createIocpPoll();
 
 IOPoll* createDefaultIOPoll()
 {
@@ -557,4 +562,4 @@ IOPoll* createIOPoll(PollType poll_type)
     }
 }
 
-KUMA_NS_END
+KEV_NS_END

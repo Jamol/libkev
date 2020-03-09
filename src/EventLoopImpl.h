@@ -23,7 +23,7 @@
 #define __EventLoopImpl_H__
 
 #include "kev.h"
-#include "evdefs.h"
+#include "kevdefs.h"
 #include "util/kmqueue.h"
 #include "TimerManager.h"
 #include "util/kmobject.h"
@@ -36,7 +36,7 @@
 #include <list>
 #include <atomic>
 
-KUMA_NS_BEGIN
+KEV_NS_BEGIN
 
 class IOPoll;
 using EventLoopToken = EventLoop::Token::Impl;
@@ -125,35 +125,35 @@ public:
 
 public:
     bool init();
-    KMError registerFd(SOCKET_FD fd, uint32_t events, IOCallback cb);
-    KMError updateFd(SOCKET_FD fd, uint32_t events);
-    KMError unregisterFd(SOCKET_FD fd, bool close_fd);
+    Result registerFd(SOCKET_FD fd, uint32_t events, IOCallback cb);
+    Result updateFd(SOCKET_FD fd, uint32_t events);
+    Result unregisterFd(SOCKET_FD fd, bool close_fd);
     TimerManagerPtr getTimerMgr() { return timer_mgr_; }
     
     PollType getPollType() const;
     bool isPollLT() const; // level trigger
     
-    KMError appendObserver(ObserverCallback cb, EventLoopToken *token);
-    KMError removeObserver(EventLoopToken *token);
+    Result appendObserver(ObserverCallback cb, EventLoopToken *token);
+    Result removeObserver(EventLoopToken *token);
     
 public:
     bool inSameThread() const { return std::this_thread::get_id() == thread_id_; }
     std::thread::id threadId() const { return thread_id_; }
-    KMError appendTask(Task task, EventLoopToken *token, const char *debugStr);
-    KMError removeTask(EventLoopToken *token);
-    KMError appendDelayedTask(uint32_t delay_ms, Task task, EventLoopToken *token, const char *debugStr);
-    KMError removeDelayedTask(EventLoopToken *token);
-    KMError removeDelayedTaskNode(DelayedTaskNodePtr &node);
+    Result appendTask(Task task, EventLoopToken *token, const char *debugStr);
+    Result removeTask(EventLoopToken *token);
+    Result appendDelayedTask(uint32_t delay_ms, Task task, EventLoopToken *token, const char *debugStr);
+    Result removeDelayedTask(EventLoopToken *token);
+    Result removeDelayedTaskNode(DelayedTaskNodePtr &node);
 
     template<typename F>
     auto invoke(F &&f)
     {
-        KMError err;
+        Result err;
         return invoke(std::forward<F>(f), err);
     }
 
     template<typename F, std::enable_if_t<!std::is_same<decltype(std::declval<F>()()), void>{}, int> = 0>
-    auto invoke(F &&f, KMError &err)
+    auto invoke(F &&f, Result &err)
     {
         static_assert(!std::is_same<decltype(f()), void>{}, "is void");
         if (inSameThread()) {
@@ -167,7 +167,7 @@ public:
     }
 
     template<typename F, std::enable_if_t<std::is_same<decltype(std::declval<F>()()), void>{}, int> = 0>
-    void invoke(F &&f, KMError &err)
+    void invoke(F &&f, Result &err)
     {
         static_assert(std::is_same<decltype(f()), void>{}, "not void");
         if (inSameThread()) {
@@ -177,36 +177,36 @@ public:
     }
 
     template<typename F, std::enable_if_t<!std::is_copy_constructible<F>{}, int> = 0>
-    KMError sync(F &&f)
+    Result sync(F &&f)
     {
-        wrapper<F> wf{std::forward<F>(f)};
+        lambda_wrapper<F> wf{std::forward<F>(f)};
         return sync(Task(std::move(wf)));
     }
-    KMError sync(Task task);
+    Result sync(Task task);
 
     template<typename F, std::enable_if_t<!std::is_copy_constructible<F>{}, int> = 0>
-    KMError async(F &&f, EventLoopToken *token=nullptr, const char *debugStr=nullptr)
+    Result async(F &&f, EventLoopToken *token=nullptr, const char *debugStr=nullptr)
     {
-        wrapper<F> wf{std::forward<F>(f)};
+        lambda_wrapper<F> wf{std::forward<F>(f)};
         return async(Task(std::move(wf)), token, debugStr);
     }
-    KMError async(Task task, EventLoopToken *token=nullptr, const char *debugStr=nullptr);
+    Result async(Task task, EventLoopToken *token=nullptr, const char *debugStr=nullptr);
 
     template<typename F, std::enable_if_t<!std::is_copy_constructible<F>{}, int> = 0>
-    KMError post(F &&f, EventLoopToken *token=nullptr, const char *debugStr=nullptr)
+    Result post(F &&f, EventLoopToken *token=nullptr, const char *debugStr=nullptr)
     {
-        wrapper<F> wf{std::forward<F>(f)};
+        lambda_wrapper<F> wf{std::forward<F>(f)};
         return post(Task(std::move(wf)), token, debugStr);
     }
-    KMError post(Task task, EventLoopToken *token=nullptr, const char *debugStr=nullptr);
+    Result post(Task task, EventLoopToken *token=nullptr, const char *debugStr=nullptr);
 
     template<typename F, std::enable_if_t<!std::is_copy_constructible<F>{}, int> = 0>
-    KMError postDelayed(uint32_t delay_ms, F &&f, EventLoopToken *token=nullptr, const char *debugStr=nullptr)
+    Result postDelayed(uint32_t delay_ms, F &&f, EventLoopToken *token=nullptr, const char *debugStr=nullptr)
     {
-        wrapper<F> wf{std::forward<F>(f)};
+        lambda_wrapper<F> wf{std::forward<F>(f)};
         return postDelayed(delay_ms, Task(std::move(wf)), token, debugStr);
     }
-    KMError postDelayed(uint32_t delay_ms, Task task, EventLoopToken *token=nullptr, const char *debugStr=nullptr);
+    Result postDelayed(uint32_t delay_ms, Task task, EventLoopToken *token=nullptr, const char *debugStr=nullptr);
 
     void wakeup();
     
@@ -274,6 +274,6 @@ protected:
     ObserverToken obs_token_;
 };
 
-KUMA_NS_END
+KEV_NS_END
 
 #endif

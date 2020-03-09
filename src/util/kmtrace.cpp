@@ -1,9 +1,9 @@
 //
 //  trace.cpp
-//  kuma
+//  kev
 //
 //  Created by Fengping Bao <jamol@live.com> on 11/12/14.
-//  Copyright (c) 2014-2019. All rights reserved.
+//  Copyright (c) 2014-2019 kev. All rights reserved.
 //
 
 #include "kmtrace.h"
@@ -44,6 +44,8 @@
 # include <android/log.h>
 #endif
 
+#define KEV_TRACE_TAG   "KEV"
+
 namespace {
 std::string getDateTimeString(bool utc) {
     auto now = std::chrono::system_clock::now();
@@ -68,7 +70,7 @@ std::string getDateTimeString(bool utc) {
 }
 } // namespace
 
-namespace kuma {
+namespace kev {
 
 static TraceFunc s_traceFunc = nullptr;
 static int s_traceLevel = TRACE_LEVEL_INFO;
@@ -108,7 +110,7 @@ void tracePrint(int level, const char* szMessage, ...)
     
 #if defined(KUMA_OS_ANDROID)
     int android_level = kAndroidLogLevels[level];
-    __android_log_print(android_level, KUMA_TRACE_TAG, "%s", szMsgBuf);
+    __android_log_print(android_level, KEV_TRACE_TAG, "%s", szMsgBuf);
 #else
     std::stringstream ss;
     ss << kTraceStrings[level];
@@ -133,7 +135,7 @@ void traceWrite(int level, const std::string &msg)
         }
 #if defined(KUMA_OS_ANDROID)
         int android_level = kAndroidLogLevels[level];
-        __android_log_print(android_level, KUMA_TRACE_TAG, "%s", msg.c_str());
+        __android_log_print(android_level, KEV_TRACE_TAG, "%s", msg.c_str());
 #else
         std::stringstream ss;
         ss << kTraceStrings[level];
@@ -167,4 +169,4 @@ int getTraceLevel()
     return s_traceLevel;
 }
 
-} // namespace kuma
+} // namespace kev

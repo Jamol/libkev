@@ -25,7 +25,7 @@
 #include "util/util.h"
 #include "Notifier.h"
 
-KUMA_NS_BEGIN
+KEV_NS_BEGIN
 
 class PipeNotifier : public Notifier
 {
@@ -65,13 +65,13 @@ public:
         return fds_[READ_FD];
     }
     
-    KMError onEvent(KMEvent ev) override {
+    Result onEvent(KMEvent ev) override {
         char buf[1024];
         ssize_t ret = 0;
         do {
             ret = ::read(fds_[READ_FD], buf, sizeof(buf));
         } while(ret == sizeof(buf) || (ret < 0 && errno == EINTR));
-        return KMError::NOERR;
+        return Result::OK;
     }
 private:
     void cleanup() {
@@ -88,6 +88,6 @@ private:
     SOCKET_FD fds_[2] { INVALID_FD, INVALID_FD };
 };
 
-KUMA_NS_END
+KEV_NS_END
 
 #endif

@@ -63,7 +63,7 @@
 
 #include "kmtrace.h"
 
-KUMA_NS_BEGIN
+KEV_NS_BEGIN
 
 enum{
     KM_RESOLVE_IPV0    = 0,
@@ -800,16 +800,18 @@ void setCurrentThreadName(const char* name)
 #endif
 }
 
-KUMA_NS_END
+KEV_NS_END
 
 #ifdef KUMA_OS_WIN
-KUMA_NS_BEGIN
+KEV_NS_BEGIN
 LPFN_CONNECTEX connect_ex = nullptr;
 LPFN_ACCEPTEX accept_ex = nullptr;
 LPFN_CANCELIOEX cancel_io_ex = nullptr;
-KUMA_NS_END
-using namespace kuma;
-void kuma_init()
+KEV_NS_END
+
+KEV_NS_USING
+
+void kev_init()
 {
     WSADATA wsaData;
     WORD wVersionRequested = MAKEWORD(1, 1);
@@ -837,7 +839,7 @@ void kuma_init()
     cancel_io_ex = (LPFN_CANCELIOEX)GetProcAddress(GetModuleHandle(L"KERNEL32"), "CancelIoEx");
 }
 
-void kuma_fini()
+void kev_fini()
 {
     WSACleanup();
 }
@@ -846,10 +848,10 @@ void kuma_fini()
 class KMInitializer {
   static KMInitializer s_singleton;
 
-  KMInitializer() { kuma_init(); }
+  KMInitializer() { kev_init(); }
 
  public:
-  ~KMInitializer() { kuma_fini(); }
+  ~KMInitializer() { kev_fini(); }
 };
 KMInitializer KMInitializer::s_singleton;
 

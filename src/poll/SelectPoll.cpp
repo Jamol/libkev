@@ -25,7 +25,7 @@
 
 #include <algorithm>
 
-KUMA_NS_BEGIN
+KEV_NS_BEGIN
 
 class SelectPoll : public IOPoll
 {
@@ -34,10 +34,10 @@ public:
     ~SelectPoll();
     
     bool init() override;
-    KMError registerFd(SOCKET_FD fd, KMEvent events, IOCallback cb) override;
-    KMError unregisterFd(SOCKET_FD fd) override;
-    KMError updateFd(SOCKET_FD fd, KMEvent events) override;
-    KMError wait(uint32_t wait_time_ms) override;
+    Result registerFd(SOCKET_FD fd, KMEvent events, IOCallback cb) override;
+    Result unregisterFd(SOCKET_FD fd) override;
+    Result updateFd(SOCKET_FD fd, KMEvent events) override;
+    Result wait(uint32_t wait_time_ms) override;
     void notify() override;
     PollType getType() const override { return PollType::SELECT; }
     bool isLevelTriggered() const override { return true; }
@@ -83,17 +83,17 @@ bool SelectPoll::init()
             return false;
         }
         IOCallback cb([this](KMEvent ev, void*, size_t) { notifier_->onEvent(ev); });
-        registerFd(notifier_->getReadFD(), KUMA_EV_READ | KUMA_EV_ERROR, std::move(cb));
+        registerFd(notifier_->getReadFD(), kEventRead | kEventError, std::move(cb));
     }
     return true;
 }
 
-KMError SelectPoll::registerFd(SOCKET_FD fd, KMEvent events, IOCallback cb)
+Result SelectPoll::registerFd(SOCKET_FD fd, KMEvent events, IOCallback cb)
 {
     if (fd < 0) {
-        return KMError::INVALID_PARAM;
+        return Result::INVALID_PARAM;
     }
-    KUMA_INFOTRACE("SelectPoll::registerFd, fd=" << fd);
+    KM_INFOTRACE("SelectPoll::registerFd, fd=" << fd);
     resizePollItems(fd);
     if (INVALID_FD == poll_items_[fd].fd || -1 == poll_items_[fd].idx) {
         PollFD pfd;
@@ -106,16 +106,16 @@ KMError SelectPoll::registerFd(SOCKET_FD fd, KMEvent events, IOCallback cb)
     poll_items_[fd].events = events;
     poll_items_[fd].cb = std::move(cb);
     updateFdSet(fd, events);
-    return KMError::NOERR;
+    return Result::OK;
 }
 
-KMError SelectPoll::unregisterFd(SOCKET_FD fd)
+Result SelectPoll::unregisterFd(SOCKET_FD fd)
 {
     auto max_fd = SOCKET_FD(poll_items_.size() - 1);
-    KUMA_INFOTRACE("SelectPoll::unregisterFd, fd="<<fd<<", max_fd="<<max_fd);
+    KM_INFOTRACE("SelectPoll::unregisterFd, fd="<<fd<<", max_fd="<<max_fd);
     if (fd < 0 || fd > max_fd) {
-        KUMA_WARNTRACE("SelectPoll::unregisterFd, failed, max_fd=" << max_fd);
-        return KMError::INVALID_PARAM;
+        KM_WARNTRACE("SelectPoll::unregisterFd, failed, max_fd=" << max_fd);
+        return Result::INVALID_PARAM;
     }
     updateFdSet(fd, 0);
     int idx = poll_items_[fd].idx;
@@ -126,56 +126,56 @@ KMError SelectPoll::unregisterFd(SOCKET_FD fd)
     }
     int last_idx = int(poll_fds_.size() - 1);
     if (idx > last_idx || -1 == idx) {
-        return KMError::NOERR;
+        return Result::OK;
     }
     if (idx != last_idx) {
         std::iter_swap(poll_fds_.begin() + idx, poll_fds_.end() - 1);
         poll_items_[poll_fds_[idx].fd].idx = idx;
     }
     poll_fds_.pop_back();
-    return KMError::NOERR;
+    return Result::OK;
 }
 
-KMError SelectPoll::updateFd(SOCKET_FD fd, KMEvent events)
+Result SelectPoll::updateFd(SOCKET_FD fd, KMEvent events)
 {
     auto max_fd = SOCKET_FD(poll_items_.size() - 1);
     if (fd < 0 || -1 == max_fd || fd > max_fd) {
-        KUMA_WARNTRACE("SelectPoll::updateFd, failed, fd="<<fd<<", max_fd="<<max_fd);
-        return KMError::INVALID_PARAM;
+        KM_WARNTRACE("SelectPoll::updateFd, failed, fd="<<fd<<", max_fd="<<max_fd);
+        return Result::INVALID_PARAM;
     }
     if(poll_items_[fd].fd != fd) {
-        KUMA_WARNTRACE("SelectPoll::updateFd, failed, fd="<<fd<<", item_fd="<<poll_items_[fd].fd);
-        return KMError::INVALID_PARAM;
+        KM_WARNTRACE("SelectPoll::updateFd, failed, fd="<<fd<<", item_fd="<<poll_items_[fd].fd);
+        return Result::INVALID_PARAM;
     }
     int idx = poll_items_[fd].idx;
     if (idx < 0 || idx >= (int)poll_fds_.size()) {
-        KUMA_WARNTRACE("SelectPoll::updateFd, failed, index="<<idx);
-        return KMError::INVALID_STATE;
+        KM_WARNTRACE("SelectPoll::updateFd, failed, index="<<idx);
+        return Result::INVALID_STATE;
     }
     if(poll_fds_[idx].fd != fd) {
-        KUMA_WARNTRACE("SelectPoll::updateFd, failed, fd="<<fd<<", pfds_fd="<<poll_fds_[idx].fd);
-        return KMError::INVALID_PARAM;
+        KM_WARNTRACE("SelectPoll::updateFd, failed, fd="<<fd<<", pfds_fd="<<poll_fds_[idx].fd);
+        return Result::INVALID_PARAM;
     }
     poll_fds_[idx].events = events;
     poll_items_[fd].events = events;
     updateFdSet(fd, events);
-    return KMError::NOERR;
+    return Result::OK;
 }
 
 void SelectPoll::updateFdSet(SOCKET_FD fd, KMEvent events)
 {
     if(events != 0) {
-        if (events & KUMA_EV_READ) {
+        if (events & kEventRead) {
             FD_SET(fd, &read_fds_);
         } else {
             FD_CLR(fd, &read_fds_);
         }
-        if (events & KUMA_EV_WRITE) {
+        if (events & kEventWrite) {
             FD_SET(fd, &write_fds_);
         } else {
             FD_CLR(fd, &write_fds_);
         }
-        if (events & KUMA_EV_ERROR) {
+        if (events & kEventError) {
             FD_SET(fd, &except_fds_);
         }
         if (fd > max_fd_) {
@@ -194,7 +194,7 @@ void SelectPoll::updateFdSet(SOCKET_FD fd, KMEvent events)
     }
 }
 
-KMError SelectPoll::wait(uint32_t wait_ms)
+Result SelectPoll::wait(uint32_t wait_ms)
 {
     fd_set readfds, writefds, exceptfds;
     memcpy(&readfds, &read_fds_, sizeof(read_fds_));
@@ -207,7 +207,7 @@ KMError SelectPoll::wait(uint32_t wait_ms)
     }
     int nready = ::select(static_cast<int>(max_fd_ + 1), &readfds, &writefds, &exceptfds, wait_ms == -1 ? NULL : &tval);
     if (nready <= 0) {
-        return KMError::NOERR;
+        return Result::OK;
     }
     // copy poll fds since event handler may unregister fd
     PollFdVector poll_fds = poll_fds_;
@@ -216,15 +216,15 @@ KMError SelectPoll::wait(uint32_t wait_ms)
         KMEvent revents = 0;
         SOCKET_FD fd = poll_fds[i].fd;
         if(FD_ISSET(fd, &readfds)) {
-            revents |= KUMA_EV_READ;
+            revents |= kEventRead;
             --nready;
         }
         if(nready > 0 && FD_ISSET(fd, &writefds)) {
-            revents |= KUMA_EV_WRITE;
+            revents |= kEventWrite;
             --nready;
         }
         if(nready > 0 && FD_ISSET(fd, &exceptfds)) {
-            revents |= KUMA_EV_ERROR;
+            revents |= kEventError;
             --nready;
         }
         if (fd < poll_items_.size()) {
@@ -235,7 +235,7 @@ KMError SelectPoll::wait(uint32_t wait_ms)
             }
         }
     }
-    return KMError::NOERR;
+    return Result::OK;
 }
 
 void SelectPoll::notify()
@@ -247,4 +247,4 @@ IOPoll* createSelectPoll() {
     return new SelectPoll();
 }
 
-KUMA_NS_END
+KEV_NS_END
