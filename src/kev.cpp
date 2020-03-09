@@ -189,19 +189,19 @@ KMError EventLoop::sync(Task task)
     return pimpl_->sync(std::move(task));
 }
 
-KMError EventLoop::async(Task task, Token *token)
+KMError EventLoop::async(Task task, Token *token, const char *debugStr)
 {
-    return pimpl_->async(std::move(task), token?token->pimpl():nullptr);
+    return pimpl_->async(std::move(task), token?token->pimpl():nullptr, debugStr);
 }
 
-KMError EventLoop::post(Task task, Token *token)
+KMError EventLoop::post(Task task, Token *token, const char *debugStr)
 {
-    return pimpl_->post(std::move(task), token?token->pimpl():nullptr);
+    return pimpl_->post(std::move(task), token?token->pimpl():nullptr, debugStr);
 }
 
-KMError EventLoop::postDelayed(uint32_t delay_ms, Task task, Token *token)
+KMError EventLoop::postDelayed(uint32_t delay_ms, Task task, Token *token, const char *debugStr)
 {
-    return pimpl_->postDelayed(delay_ms, std::move(task), token?token->pimpl():nullptr);
+    return pimpl_->postDelayed(delay_ms, std::move(task), token?token->pimpl():nullptr, debugStr);
 }
 
 void EventLoop::wakeup()

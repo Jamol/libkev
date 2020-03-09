@@ -252,12 +252,13 @@ void EventLoop::Impl::stop()
     wakeup();
 }
 
-KMError EventLoop::Impl::appendTask(Task task, EventLoopToken *token)
+KMError EventLoop::Impl::appendTask(Task task, EventLoopToken *token, const char *debugStr)
 {
     if (token && token->eventLoop().get() != this) {
         return KMError::INVALID_PARAM;
     }
-    auto node = std::make_shared<TaskQueue::DLNode>(std::move(task), token);
+    std::string dstr{debugStr ? debugStr : ""};
+    auto node = std::make_shared<TaskQueue::DLNode>(std::move(task), token, std::move(dstr));
     LockGuard g(task_mutex_);
     if (stop_loop_) {
         return KMError::INVALID_STATE;
@@ -297,12 +298,13 @@ KMError EventLoop::Impl::removeTask(EventLoopToken *token)
 }
 
 
-KMError EventLoop::Impl::appendDelayedTask(uint32_t delay_ms, Task task, EventLoopToken *token)
+KMError EventLoop::Impl::appendDelayedTask(uint32_t delay_ms, Task task, EventLoopToken *token, const char *debugStr)
 {
     if (token && token->eventLoop().get() != this) {
         return KMError::INVALID_PARAM;
     }
-    auto node = std::make_shared<DelayedTaskQueue::DLNode>(this, token);
+    std::string dstr{debugStr ? debugStr : ""};
+    auto node = std::make_shared<DelayedTaskQueue::DLNode>(this, token, std::move(dstr));
     {
         LockGuard g(task_mutex_);
         if (stop_loop_) {
@@ -378,19 +380,19 @@ KMError EventLoop::Impl::sync(Task task)
     return KMError::NOERR;
 }
 
-KMError EventLoop::Impl::async(Task task, EventLoopToken *token)
+KMError EventLoop::Impl::async(Task task, EventLoopToken *token, const char *debugStr)
 {
     if(inSameThread()) {
         task();
         return KMError::NOERR;
     } else {
-        return post(std::move(task), token);
+        return post(std::move(task), token, debugStr);
     }
 }
 
-KMError EventLoop::Impl::post(Task task, EventLoopToken *token)
+KMError EventLoop::Impl::post(Task task, EventLoopToken *token, const char *debugStr)
 {
-    auto ret = appendTask(std::move(task), token);
+    auto ret = appendTask(std::move(task), token, debugStr);
     if (ret != KMError::NOERR) {
         return ret;
     }
@@ -398,9 +400,9 @@ KMError EventLoop::Impl::post(Task task, EventLoopToken *token)
     return KMError::NOERR;
 }
 
-KMError EventLoop::Impl::postDelayed(uint32_t delay_ms, Task task, EventLoopToken *token)
+KMError EventLoop::Impl::postDelayed(uint32_t delay_ms, Task task, EventLoopToken *token, const char *debugStr)
 {
-    return  appendDelayedTask(delay_ms, std::move(task), token);
+    return  appendDelayedTask(delay_ms, std::move(task), token, debugStr);
 }
 
 void EventLoop::Impl::wakeup()
@@ -410,8 +412,8 @@ void EventLoop::Impl::wakeup()
 
 /////////////////////////////////////////////////////////////////
 // DelayedTaskSlot
-DelayedTaskSlot::DelayedTaskSlot(EventLoop::Impl *loop, EventLoopToken *token)
-    : token(token), timer(loop->getTimerMgr())
+DelayedTaskSlot::DelayedTaskSlot(EventLoop::Impl *loop, EventLoopToken *token, std::string debugStr)
+    : token(token), debugStr(std::move(debugStr)), timer(loop->getTimerMgr())
 {
 
 }

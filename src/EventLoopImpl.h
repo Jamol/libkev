@@ -50,8 +50,8 @@ public:
         RUNNING,
         INACTIVE,
     };
-    TaskSlot(EventLoop::Task &&t, EventLoopToken *token)
-    : task(std::move(t)), token(token) {}
+    TaskSlot(EventLoop::Task &&t, EventLoopToken *token, std::string debugStr)
+    : task(std::move(t)), token(token), debugStr(std::move(debugStr)) {}
     void operator() ()
     {
         if (task) {
@@ -61,6 +61,7 @@ public:
     EventLoop::Task task;
     State           state = State::ACTIVE;
     EventLoopToken* token;
+    std::string     debugStr;
 };
 using TaskQueue = DLQueue<TaskSlot>;
 using TaskNodePtr = TaskQueue::NodePtr;
@@ -68,7 +69,7 @@ using TaskNodePtr = TaskQueue::NodePtr;
 class DelayedTaskSlot
 {
 public:
-    DelayedTaskSlot(EventLoop::Impl *loop, EventLoopToken *token);
+    DelayedTaskSlot(EventLoop::Impl *loop, EventLoopToken *token, std::string debugStr);
     ~DelayedTaskSlot()
     {
         cancel();
@@ -87,6 +88,7 @@ public:
 
 public:
     EventLoopToken* token;
+    std::string     debugStr;
     Timer::Impl     timer;
 };
 using DelayedTaskQueue = DLQueue<DelayedTaskSlot>;
@@ -137,9 +139,9 @@ public:
 public:
     bool inSameThread() const { return std::this_thread::get_id() == thread_id_; }
     std::thread::id threadId() const { return thread_id_; }
-    KMError appendTask(Task task, EventLoopToken *token);
+    KMError appendTask(Task task, EventLoopToken *token, const char *debugStr);
     KMError removeTask(EventLoopToken *token);
-    KMError appendDelayedTask(uint32_t delay_ms, Task task, EventLoopToken *token);
+    KMError appendDelayedTask(uint32_t delay_ms, Task task, EventLoopToken *token, const char *debugStr);
     KMError removeDelayedTask(EventLoopToken *token);
     KMError removeDelayedTaskNode(DelayedTaskNodePtr &node);
 
@@ -183,28 +185,28 @@ public:
     KMError sync(Task task);
 
     template<typename F, std::enable_if_t<!std::is_copy_constructible<F>{}, int> = 0>
-    KMError async(F &&f, EventLoopToken *token=nullptr)
+    KMError async(F &&f, EventLoopToken *token=nullptr, const char *debugStr=nullptr)
     {
         wrapper<F> wf{std::forward<F>(f)};
-        return async(Task(std::move(wf)), token);
+        return async(Task(std::move(wf)), token, debugStr);
     }
-    KMError async(Task task, EventLoopToken *token=nullptr);
+    KMError async(Task task, EventLoopToken *token=nullptr, const char *debugStr=nullptr);
 
     template<typename F, std::enable_if_t<!std::is_copy_constructible<F>{}, int> = 0>
-    KMError post(F &&f, EventLoopToken *token=nullptr)
+    KMError post(F &&f, EventLoopToken *token=nullptr, const char *debugStr=nullptr)
     {
         wrapper<F> wf{std::forward<F>(f)};
-        return post(Task(std::move(wf)), token);
+        return post(Task(std::move(wf)), token, debugStr);
     }
-    KMError post(Task task, EventLoopToken *token=nullptr);
+    KMError post(Task task, EventLoopToken *token=nullptr, const char *debugStr=nullptr);
 
     template<typename F, std::enable_if_t<!std::is_copy_constructible<F>{}, int> = 0>
-    KMError postDelayed(uint32_t delay_ms, F &&f, EventLoopToken *token=nullptr)
+    KMError postDelayed(uint32_t delay_ms, F &&f, EventLoopToken *token=nullptr, const char *debugStr=nullptr)
     {
         wrapper<F> wf{std::forward<F>(f)};
-        return postDelayed(delay_ms, Task(std::move(wf)), token);
+        return postDelayed(delay_ms, Task(std::move(wf)), token, debugStr);
     }
-    KMError postDelayed(uint32_t delay_ms, Task task, EventLoopToken *token=nullptr);
+    KMError postDelayed(uint32_t delay_ms, Task task, EventLoopToken *token=nullptr, const char *debugStr=nullptr);
 
     void wakeup();
     
