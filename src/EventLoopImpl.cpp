@@ -502,11 +502,14 @@ KEV_NS_END
 
 #ifdef KUMA_OS_WIN
 # include <MSWSock.h>
-extern LPFN_CONNECTEX connect_ex;
-extern LPFN_ACCEPTEX accept_ex;
 #endif
 
 KEV_NS_BEGIN
+
+#ifdef KUMA_OS_WIN
+extern LPFN_CONNECTEX connect_ex;
+extern LPFN_ACCEPTEX accept_ex;
+#endif
 
 IOPoll* createEPoll();
 IOPoll* createVPoll();
