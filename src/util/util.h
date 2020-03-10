@@ -107,11 +107,11 @@ bool is_equal(const char* str1, const char* str2, int n);
 bool is_equal(const std::string& str1, const std::string& str2, int n);
 bool is_equal(const char* str1, const std::string& str2, int n);
 bool is_equal(const std::string& str1, const char* str2, int n);
-char* trim_left(char* str);
-char* trim_right(char* str);
-char* trim_right(char* str, char* str_end);
-std::string& trim_left(std::string& str);
-std::string& trim_right(std::string& str);
+char* trim_left(char* str, char c);
+char* trim_right(char* str, char c);
+char* trim_right(char* str, char* str_end, char c);
+std::string& trim_left(std::string& str, char c);
+std::string& trim_right(std::string& str, char c);
 
 std::string getExecutablePath();
 std::string getCurrentModulePath();
@@ -123,8 +123,8 @@ void for_each_token(const std::string &tokens, char delim, LAMBDA &&func)
     ss.str(tokens);
     std::string token;
     while (std::getline(ss, token, delim)) {
-        trim_left(token);
-        trim_right(token);
+        trim_left(token, ' ');
+        trim_right(token, ' ');
         if (!func(token)) {
             break;
         }
@@ -133,78 +133,6 @@ void for_each_token(const std::string &tokens, char delim, LAMBDA &&func)
 bool contains_token(const std::string& tokens, const std::string& token, char delim);
 bool remove_token(std::string& tokens, const std::string& token, char delim);
 
-template<typename T>
-std::weak_ptr<T> __to_weak_ptr(std::enable_shared_from_this<T> *ptr, ...)
-{
-    return ptr->shared_from_this();
-}
-
-template<typename T>
-std::weak_ptr<T const> __to_weak_ptr(std::enable_shared_from_this<T> const *ptr, ...)
-{
-    return ptr->shared_from_this();
-}
-
-template<typename T>
-auto __to_weak_ptr(std::enable_shared_from_this<T> *ptr, decltype(ptr->weak_from_this()) *) -> decltype(ptr->weak_from_this())
-{
-    return ptr->weak_from_this();
-}
-
-template<typename T>
-auto __to_weak_ptr(std::enable_shared_from_this<T> const *ptr, decltype(ptr->weak_from_this()) *) -> decltype(ptr->weak_from_this())
-{
-    return ptr->weak_from_this();
-}
-
-template<typename T>
-std::weak_ptr<T> to_weak_ptr(std::enable_shared_from_this<T> *ptr)
-{
-    return __to_weak_ptr<T>(ptr, nullptr);
-}
-
-template<typename T>
-std::weak_ptr<T const> to_weak_ptr(std::enable_shared_from_this<T> const *ptr)
-{
-    return __to_weak_ptr<T>(ptr, nullptr);
-}
-
-
-inline uint32_t decode_u32(const uint8_t *src)
-{
-    return (src[0] << 24) | (src[1] << 16) | (src[2] << 8) | src[3];
-}
-
-inline uint32_t decode_u24(const uint8_t *src)
-{
-    return (src[0] << 16) | (src[1] << 8) | src[2];
-}
-
-inline uint16_t decode_u16(const uint8_t *src)
-{
-    return (src[0] << 8) | src[1];
-}
-
-inline void encode_u32(uint8_t *dst, uint32_t u)
-{
-    dst[0] = u >> 24;
-    dst[1] = u >> 16;
-    dst[2] = u >> 8;
-    dst[3] = u;
-}
-
-inline void encode_u24(uint8_t *dst, uint32_t u)
-{
-    dst[0] = u >> 16;
-    dst[1] = u >> 8;
-    dst[2] = u;
-}
-
-inline void encode_u16(uint8_t *dst, uint32_t u)
-{
-    dst[0] = u >> 8;
-    dst[1] = u;
-}
 
 int generateRandomBytes(uint8_t *buf, int len);
 

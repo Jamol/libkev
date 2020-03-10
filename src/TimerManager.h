@@ -22,8 +22,8 @@
 #ifndef __TimerManager_H__
 #define __TimerManager_H__
 
-#include "kevdefs.h"
-#include "kev.h"
+#include "../include/kevdefs.h"
+#include "../include/kev.h"
 
 #include <memory>
 #include <mutex>

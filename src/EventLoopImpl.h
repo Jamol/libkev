@@ -22,8 +22,8 @@
 #ifndef __EventLoopImpl_H__
 #define __EventLoopImpl_H__
 
-#include "kev.h"
-#include "kevdefs.h"
+#include "../include/kev.h"
+#include "../include/kevdefs.h"
 #include "util/kmqueue.h"
 #include "TimerManager.h"
 #include "util/kmobject.h"
@@ -117,7 +117,7 @@ public:
     PendingObject* prev_ = nullptr;
 };
 
-class EventLoop::Impl final : public KMObject
+class EventLoop::Impl : public KMObject
 {
 public:
     Impl(PollType poll_type = PollType::NONE);

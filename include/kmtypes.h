@@ -2,7 +2,8 @@
 // wrapper for move-only lambda
 // https://stackoverflow.com/questions/25330716/move-only-version-of-stdfunction
 //
-#pragma once
+#ifndef __KEVTYPES_H__
+#define __KEVTYPES_H__
 
 #include <type_traits>
 
@@ -39,3 +40,5 @@ struct lambda_wrapper<Fn, std::enable_if_t< !std::is_copy_constructible<Fn>{}
 };
 
 } // namespace kev
+
+#endif // __KEVTYPES_H__

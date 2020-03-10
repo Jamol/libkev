@@ -509,23 +509,23 @@ bool is_equal(const std::string& str1, const char* str2, int n)
     return strncasecmp(str1.c_str(), str2, n) == 0;
 }
 
-char* trim_left(char* str)
+char* trim_left(char* str, char c)
 {
-    while (*str && isspace(*str++)) {
+    while (*str && *str++ == c) {
         ;
     }
     
     return str;
 }
 
-char* trim_right(char* str)
+char* trim_right(char* str, char c)
 {
-    return trim_right(str, str + strlen(str));
+    return trim_right(str, str + strlen(str), c);
 }
 
-char* trim_right(char* str, char* str_end)
+char* trim_right(char* str, char* str_end, char c)
 {
-    while (--str_end >= str && isspace(*str_end)) {
+    while (--str_end >= str && *str_end == c) {
         ;
     }
     *(++str_end) = 0;
@@ -533,15 +533,15 @@ char* trim_right(char* str, char* str_end)
     return str;
 }
 
-std::string& trim_left(std::string& str)
+std::string& trim_left(std::string& str, char c)
 {
-    str.erase(0, str.find_first_not_of(' '));
+    str.erase(0, str.find_first_not_of(c));
     return str;
 }
 
-std::string& trim_right(std::string& str)
+std::string& trim_right(std::string& str, char c)
 {
-    auto pos = str.find_last_not_of(' ');
+    auto pos = str.find_last_not_of(c);
     if(pos != std::string::npos) {
         str.erase(pos + 1);
     }
