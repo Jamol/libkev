@@ -189,23 +189,28 @@ void EventLoop::Impl::removePendingObject(PendingObject *obj)
 
 void EventLoop::Impl::processTasks()
 {
-    TaskQueue tq;
     std::unique_lock<LockType> ul(task_mutex_);
-    task_queue_.swap(tq);
+    auto count = task_queue_.size();
     
-    while (auto node = tq.front_node()) {
-        tq.pop_front();
-        auto &task_slot = node->element();
-        task_slot.state = TaskSlot::State::RUNNING;
-        ul.unlock();
-        {// execute the task
-            LockGuard g(task_run_mutex_);
-            if (task_slot.state != TaskSlot::State::INACTIVE) {
-                task_slot();
-                task_slot.state = TaskSlot::State::INACTIVE;
-            }
+    while (count-- > 0) {
+        auto node = task_queue_.front_node();
+        if (!node) {
+            break;
         }
-        ul.lock();
+        task_queue_.pop_front();
+        auto &task_slot = node->element();
+        if (task_slot.state == TaskSlot::State::ACTIVE) {
+            task_slot.state = TaskSlot::State::RUNNING;
+            ul.unlock();
+            {// execute the task
+                LockGuard g(task_run_mutex_);
+                if (task_slot.state != TaskSlot::State::INACTIVE) {
+                    task_slot();
+                }
+            }
+            ul.lock();
+        }
+        task_slot.state = TaskSlot::State::INACTIVE;
         if (task_slot.token) {
             task_slot.token->removeTaskNode(node);
         }
@@ -219,6 +224,9 @@ void EventLoop::Impl::loopOnce(uint32_t max_wait_ms)
     timer_mgr_->checkExpire(&wait_ms);
     if(wait_ms > max_wait_ms) {
         wait_ms = max_wait_ms;
+    }
+    if (!task_queue_.empty()) {
+        wait_ms = 0;
     }
     poll_->wait((uint32_t)wait_ms);
 }
@@ -282,9 +290,9 @@ Result EventLoop::Impl::removeTask(EventLoopToken *token)
             auto &task_slot = node->element();
             if (task_slot.state == TaskSlot::State::RUNNING) {
                 is_running = true;
-                task_slot.state = TaskSlot::State::INACTIVE;
-                task_slot.token = nullptr;
             }
+            task_slot.state = TaskSlot::State::INACTIVE;
+            task_slot.token = nullptr;
             task_queue_.remove(node);
         }
         token->task_nodes_.clear();
