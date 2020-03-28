@@ -102,6 +102,7 @@ Result IocpPoll::updateFd(SOCKET_FD fd, KMEvent events)
     return Result::NOT_SUPPORTED;
 }
 
+#if 1
 Result IocpPoll::wait(uint32_t wait_ms)
 {
     OVERLAPPED_ENTRY entries[128];
@@ -127,6 +128,36 @@ Result IocpPoll::wait(uint32_t wait_ms)
     }
     return Result::OK;
 }
+#else
+Result IocpPoll::wait(uint32_t wait_ms)
+{
+    DWORD bytes;
+    ULONG_PTR key;
+    OVERLAPPED *pOverlapped = NULL;
+    auto success = GetQueuedCompletionStatus(hCompPort_, &bytes, &key, &pOverlapped, wait_ms);
+    if (success) {
+        SOCKET_FD fd = (SOCKET_FD)key;
+        if (fd < poll_items_.size()) {
+            IOCallback &cb = poll_items_[fd].cb;
+            size_t io_size = bytes;
+            if (cb) cb(0, pOverlapped, io_size);
+        }
+    }
+    else {
+        auto err = ::GetLastError();
+        if (NULL == pOverlapped) { // GetQueuedCompletionStatus() failed
+            if (err != WAIT_TIMEOUT) {
+                KM_ERRTRACE("IocpPoll::wait, err="<<err);
+            }
+        } else { // async IO failed
+            if (key) {
+                SOCKET_FD fd = (SOCKET_FD)key;
+            }
+        }
+    }
+    return Result::OK;
+}
+#endif
 
 void IocpPoll::notify()
 {
