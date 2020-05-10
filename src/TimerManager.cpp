@@ -87,9 +87,11 @@ TimerManager::~TimerManager()
         for (int j=0; j<TIMER_VECTOR_SIZE && timer_count_ > 0; ++j)
         {
             while(!list_empty(&tv_[i][j])) {
-                tv_[i][j].next_->cb_ = nullptr;
-                tv_[i][j].next_->cancelled_ = true;
-                list_remove_node(tv_[i][j].next_);
+                auto *timer_node = tv_[i][j].next_;
+                list_remove_node(timer_node);
+                timer_node->cancelled_ = true;
+                // NOTE: the timer_node may be destroyed when cb_ is reset
+                timer_node->cb_ = nullptr;
                 --timer_count_;
             }
         }
@@ -168,8 +170,9 @@ void TimerManager::cancelTimer(TimerNode *timer_node)
     if(reschedule_node_ == timer_node) {
         reschedule_node_ = nullptr;
     }
-    timer_node->cb_ = nullptr;
     timer_node->cancelled_ = true;
+    // NOTE: the timer_node may be destroyed when cb_ is reset
+    timer_node->cb_ = nullptr;
 }
 
 void TimerManager::list_init_head(TimerNode* head)
@@ -433,8 +436,9 @@ int TimerManager::checkExpire(unsigned long* remain_ms)
                 addTimer(reschedule_node_, FROM_RESCHEDULE);
             } else {
                 // reset timer callback
-                reschedule_node_->cb_ = nullptr;
                 reschedule_node_->cancelled_ = true;
+                // NOTE: the reschedule_node_ may be destroyed when cb_ is reset
+                reschedule_node_->cb_ = nullptr;
             }
             reschedule_node_ = nullptr;
         }

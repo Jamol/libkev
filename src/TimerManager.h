@@ -77,8 +77,11 @@ public:
         bool                repeating_{ false };
         uint32_t            delay_ms_{ 0 };
         TICK_COUNT_TYPE     start_tick_{ 0 };
-        // timer callback will be reset after timer cancelled or executed, 
+        // NOTE: timer callback will be reset after timer cancelled or executed, 
         // or when TimerManager destructed
+        // NOTE: the TimerNode may be destroyed when TimerCallback is reset,
+        // for example, the DealyedTaskSlotPtr is stored in TimerCallback and
+        // will be destroyed when TimerCallback is reset 
         TimerCallback       cb_;
         
     protected:
