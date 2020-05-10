@@ -44,55 +44,70 @@ using EventLoopToken = EventLoop::Token::Impl;
 class TaskSlot
 {
 public:
-    enum class State
-    {
-        ACTIVE,
-        RUNNING,
-        INACTIVE,
-    };
-    TaskSlot(EventLoop::Task &&t, EventLoopToken *token, std::string debugStr)
-    : task(std::move(t)), token(token), debugStr(std::move(debugStr)) {}
-    void operator() ()
+    TaskSlot(EventLoop::Task &&t, std::string debugStr)
+    : task(std::move(t)), debugStr(std::move(debugStr)) {}
+    virtual ~TaskSlot() {}
+    virtual void operator() ()
     {
         if (task) {
+            task_running = true;
             task();
+            task = nullptr;
+            task_running = false;
         }
     }
+    virtual void cancel()
+    {
+        task = nullptr;
+    }
+    bool isActive() const
+    {
+        return bool(task);
+    }
+    bool isRunning() const
+    {
+        return task_running;
+    }
     EventLoop::Task task;
-    State           state = State::ACTIVE;
-    EventLoopToken* token;
+    bool            task_running = false;
     std::string     debugStr;
 };
-using TaskQueue = DLQueue<TaskSlot>;
-using TaskNodePtr = TaskQueue::NodePtr;
 
-class DelayedTaskSlot
+class TokenTaskSlot : public TaskSlot
 {
 public:
-    DelayedTaskSlot(EventLoop::Impl *loop, EventLoopToken *token, std::string debugStr);
-    ~DelayedTaskSlot()
+    TokenTaskSlot(EventLoop::Task &&t, std::string debugStr)
+    : TaskSlot(std::move(t), std::move(debugStr)) {}
+    void operator() () override
     {
-        cancel();
+        std::lock_guard<std::mutex> g(mlock);
+        TaskSlot::operator()();
     }
-    template <typename F>
-    void schedule(uint32_t delay_ms, F &&f)
+    void cancel() override
     {
-        timer.schedule(delay_ms, TimerMode::ONE_SHOT, [f=std::forward<F>(f)] () mutable {
-            f();
-        });
+        std::lock_guard<std::mutex> g(mlock);
+        TaskSlot::cancel();
     }
+    std::mutex      mlock;
+};
+
+using TaskSlotPtr = std::shared_ptr<TaskSlot>;
+using TaskQueue = std::list<TaskSlotPtr>;
+
+class DelayedTaskSlot : public TaskSlot
+{
+public:
+    DelayedTaskSlot(EventLoop::Impl *loop, EventLoop::Task &&t, std::string debugStr);
     void cancel()
     {
         timer.cancel();
+        TaskSlot::cancel();
     }
 
 public:
-    EventLoopToken* token;
-    std::string     debugStr;
     Timer::Impl     timer;
 };
-using DelayedTaskQueue = DLQueue<DelayedTaskSlot>;
-using DelayedTaskNodePtr = DelayedTaskQueue::NodePtr;
+using DelayedTaskSlotPtr = std::shared_ptr<DelayedTaskSlot>;
 
 enum class LoopActivity {
     EXIT,
@@ -143,7 +158,6 @@ public:
     Result removeTask(EventLoopToken *token);
     Result appendDelayedTask(uint32_t delay_ms, Task task, EventLoopToken *token, const char *debugStr);
     Result removeDelayedTask(EventLoopToken *token);
-    Result removeDelayedTaskNode(DelayedTaskNodePtr &node);
 
     template<typename F>
     auto invoke(F &&f)
@@ -232,8 +246,6 @@ protected:
     
     TaskQueue           task_queue_;
     LockType            task_mutex_;
-    LockType            task_run_mutex_;
-    DelayedTaskQueue    dtask_queue_;
     
     ObserverQueue       obs_queue_;
     LockType            obs_mutex_;
@@ -254,10 +266,10 @@ public:
     void eventLoop(const EventLoopPtr &loop);
     EventLoopPtr eventLoop();
     
-    void appendTaskNode(TaskNodePtr &node);
-    void removeTaskNode(TaskNodePtr &node);
-    void appendDelayedTaskNode(DelayedTaskNodePtr &node);
-    void removeDelayedTaskNode(DelayedTaskNodePtr &node);
+    void appendTaskNode(TaskSlotPtr &node);
+    void clearInactiveTask();
+    void appendDelayedTaskNode(DelayedTaskSlotPtr &node);
+    void clearInactiveDelayedTask();
     
     bool expired();
     void reset();
@@ -266,9 +278,9 @@ protected:
     friend class EventLoop::Impl;
     EventLoopWeakPtr loop_;
     
-    // task_nodes_ is protected by EventLoop task_mutex_
-    std::list<TaskNodePtr> task_nodes_;
-    std::list<DelayedTaskNodePtr> dtask_nodes_;
+    // task_nodes_ and dtask_nodes_ are protected by EventLoop task_mutex_
+    std::list<TaskSlotPtr> task_nodes_;
+    std::list<DelayedTaskSlotPtr> dtask_nodes_;
     
     bool observed = false;
     ObserverToken obs_token_;

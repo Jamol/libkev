@@ -63,6 +63,9 @@
 
 #include "kmtrace.h"
 
+
+using namespace std::chrono;
+
 KEV_NS_BEGIN
 
 enum{
@@ -675,11 +678,11 @@ std::string getCurrentModulePath()
     return str_path;
 }
 
-std::string getDateTimeString(bool utc) {
-    auto now = std::chrono::system_clock::now();
-    auto msecs = std::chrono::duration_cast<std::chrono::milliseconds>
-        (now.time_since_epoch()).count() % 1000;
-    auto itt = std::chrono::system_clock::to_time_t(now);
+std::string getDateTimeString(const system_clock::time_point &time, bool utc)
+{
+    auto msecs = duration_cast<milliseconds>
+        (time.time_since_epoch()).count() % 1000;
+    auto itt = system_clock::to_time_t(time);
     struct tm res;
 #ifdef KUMA_OS_WIN
     utc ? gmtime_s(&res, &itt) : localtime_s(&res, &itt); // windows and C11
@@ -695,6 +698,12 @@ std::string getDateTimeString(bool utc) {
         ss << std::put_time(&res, "%z");
     }
     return ss.str();
+}
+
+std::string getDateTimeString(bool utc)
+{
+    auto now = system_clock::now();
+    return getDateTimeString(now, utc);
 }
 
 #if defined(KUMA_OS_WIN)

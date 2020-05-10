@@ -27,6 +27,7 @@
 
 #include <memory>
 #include <mutex>
+#include <atomic>
 
 #ifndef TICK_COUNT_TYPE
 # define TICK_COUNT_TYPE    uint64_t
@@ -42,11 +43,14 @@ KEV_NS_BEGIN
 class TimerManager
 {
 public:
+    using TimerCallback = std::function<void(void)>;
+    class TimerNode;
+
     TimerManager(EventLoop::Impl* loop);
     ~TimerManager();
 
-    bool scheduleTimer(Timer::Impl* timer, uint32_t delay_ms, TimerMode mode);
-    void cancelTimer(Timer::Impl* timer);
+    bool scheduleTimer(TimerNode *timer, uint32_t delay_ms, TimerMode mode, TimerCallback cb);
+    void cancelTimer(TimerNode *timer);
 
     int checkExpire(unsigned long* remain_ms = nullptr);
 
@@ -55,7 +59,13 @@ public:
     {
     public:
         TimerNode() = default;
-        void reset()
+        void operator() ()
+        {
+            if (!cancelled_ && cb_) {
+                cb_();
+            }
+        }
+        void resetNode()
         {
             tv_index_ = -1;
             tl_index_ = -1;
@@ -63,11 +73,13 @@ public:
             next_ = nullptr;
         }
         
-        bool            cancelled_{ true };
-        bool            repeating_{ false };
-        uint32_t        delay_ms_{ 0 };
-        TICK_COUNT_TYPE start_tick_{ 0 };
-        Timer::Impl*    timer_{ nullptr };
+        std::atomic<bool>   cancelled_{ true };
+        bool                repeating_{ false };
+        uint32_t            delay_ms_{ 0 };
+        TICK_COUNT_TYPE     start_tick_{ 0 };
+        // timer callback will be reset after timer cancelled or executed, 
+        // or when TimerManager destructed
+        TimerCallback       cb_;
         
     protected:
         friend class TimerManager;
@@ -107,7 +119,7 @@ private:
     typedef std::lock_guard<KM_Mutex> KM_Lock_Guard;
     
     EventLoop::Impl* loop_;
-    KM_Mutex mutex_;
+    std::mutex mutex_;
     KM_Mutex running_mutex_;
     TimerNode*  running_node_{ nullptr };
     TimerNode*  reschedule_node_{ nullptr };
@@ -138,7 +150,6 @@ public:
     
 private:
     friend class TimerManager;
-    TimerCallback cb_;
     std::weak_ptr<TimerManager> timer_mgr_;
     TimerManager::TimerNode timer_node_; // intrusive list node
 };

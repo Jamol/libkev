@@ -198,5 +198,8 @@ xcuserdata
 xcshareddata
 obj
 
+# VSCode
+.vscode/
+
 out
 lib

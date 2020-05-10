@@ -189,31 +189,15 @@ void EventLoop::Impl::removePendingObject(PendingObject *obj)
 
 void EventLoop::Impl::processTasks()
 {
-    std::unique_lock<LockType> ul(task_mutex_);
-    auto count = task_queue_.size();
-    
-    while (count-- > 0) {
-        auto node = task_queue_.front_node();
-        if (!node) {
-            break;
-        }
-        task_queue_.pop_front();
-        auto &task_slot = node->element();
-        if (task_slot.state == TaskSlot::State::ACTIVE) {
-            task_slot.state = TaskSlot::State::RUNNING;
-            ul.unlock();
-            {// execute the task
-                LockGuard g(task_run_mutex_);
-                if (task_slot.state != TaskSlot::State::INACTIVE) {
-                    task_slot();
-                }
-            }
-            ul.lock();
-        }
-        task_slot.state = TaskSlot::State::INACTIVE;
-        if (task_slot.token) {
-            task_slot.token->removeTaskNode(node);
-        }
+
+    TaskQueue tq;
+    {
+        std::unique_lock<LockType> ul(task_mutex_);
+        task_queue_.swap(tq);
+    }
+
+    for (auto &ts : tq) {
+        (*ts)();
     }
 }
 
@@ -266,15 +250,20 @@ Result EventLoop::Impl::appendTask(Task task, EventLoopToken *token, const char 
         return Result::INVALID_PARAM;
     }
     std::string dstr{debugStr ? debugStr : ""};
-    auto node = std::make_shared<TaskQueue::DLNode>(std::move(task), token, std::move(dstr));
+    TaskSlotPtr ptr;
+    if (token) {
+        ptr = std::make_shared<TokenTaskSlot>(std::move(task), std::move(dstr));
+    } else {
+        ptr = std::make_shared<TaskSlot>(std::move(task), std::move(dstr));
+    }
     LockGuard g(task_mutex_);
     if (stop_loop_) {
         return Result::INVALID_STATE;
     }
-    task_queue_.enqueue(node);
     if (token) {
-        token->appendTaskNode(node);
+        token->appendTaskNode(ptr);
     }
+    task_queue_.emplace_back(std::move(ptr));
     return Result::OK;
 }
 
@@ -283,28 +272,20 @@ Result EventLoop::Impl::removeTask(EventLoopToken *token)
     if (!token || token->eventLoop().get() != this) {
         return Result::INVALID_PARAM;
     }
-    bool is_running = false;
+    
     {
         LockGuard g(task_mutex_);
-        for (auto &node : token->task_nodes_) {
-            auto &task_slot = node->element();
-            if (task_slot.state == TaskSlot::State::RUNNING) {
-                is_running = true;
+        for (auto &ts : token->task_nodes_) {
+            if (ts->isActive()) {
+                if (!inSameThread() || !ts->isRunning()) {
+                    ts->cancel();
+                }
             }
-            task_slot.state = TaskSlot::State::INACTIVE;
-            task_slot.token = nullptr;
-            task_queue_.remove(node);
         }
         token->task_nodes_.clear();
     }
-    if (is_running && !inSameThread()) {
-        // wait for end of running
-        task_run_mutex_.lock();
-        task_run_mutex_.unlock();
-    }
     return Result::OK;
 }
-
 
 Result EventLoop::Impl::appendDelayedTask(uint32_t delay_ms, Task task, EventLoopToken *token, const char *debugStr)
 {
@@ -312,24 +293,19 @@ Result EventLoop::Impl::appendDelayedTask(uint32_t delay_ms, Task task, EventLoo
         return Result::INVALID_PARAM;
     }
     std::string dstr{debugStr ? debugStr : ""};
-    auto node = std::make_shared<DelayedTaskQueue::DLNode>(this, token, std::move(dstr));
-    {
-        LockGuard g(task_mutex_);
-        if (stop_loop_) {
-            return Result::INVALID_STATE;
-        }
-        dtask_queue_.enqueue(node);
-        if (token) {
-            token->appendDelayedTaskNode(node);
-        }
+    auto ptr = std::make_shared<DelayedTaskSlot>(this, std::move(task), std::move(dstr));
+    LockGuard g(task_mutex_);
+    if (stop_loop_) {
+        return Result::INVALID_STATE;
     }
-    std::weak_ptr<DelayedTaskQueue::DLNode> weak_node = node;
-    node->element().schedule(delay_ms, [this, t=std::move(task), wn=std::move(weak_node)] () mutable {
-        if (t) t();
-        auto node = wn.lock();
-        if (node) {
-            removeDelayedTaskNode(node);
-        }
+    if (token) {
+        token->appendDelayedTaskNode(ptr);
+    }
+    // NOTE: ptr is owned by timer callback, it will be released after timer cancelled or executed,
+    // or when TimerManager destructed
+    ptr->timer.schedule(delay_ms, TimerMode::ONE_SHOT, [ptr=std::move(ptr)] () mutable {
+        (*ptr)();
+        ptr.reset();
     });
     return Result::OK;
 }
@@ -341,25 +317,11 @@ Result EventLoop::Impl::removeDelayedTask(EventLoopToken *token)
     }
     LockGuard g(task_mutex_);
     for (auto &node : token->dtask_nodes_) {
-        auto &dtask_slot = node->element();
-        dtask_slot.token = nullptr;
-        dtask_slot.cancel();
-        dtask_queue_.remove(node);
+        if (node->isActive()) {
+            node->cancel();
+        }
     }
     token->dtask_nodes_.clear();
-    return Result::OK;
-}
-
-Result EventLoop::Impl::removeDelayedTaskNode(DelayedTaskNodePtr &node)
-{
-    LockGuard g(task_mutex_);
-    auto &dtask_slot = node->element();
-    dtask_slot.cancel();
-    if (dtask_slot.token) {
-        dtask_slot.token->removeDelayedTaskNode(node);
-        dtask_slot.token = nullptr;
-    }
-    dtask_queue_.remove(node);
     return Result::OK;
 }
 
@@ -420,10 +382,10 @@ void EventLoop::Impl::wakeup()
 
 /////////////////////////////////////////////////////////////////
 // DelayedTaskSlot
-DelayedTaskSlot::DelayedTaskSlot(EventLoop::Impl *loop, EventLoopToken *token, std::string debugStr)
-    : token(token), debugStr(std::move(debugStr)), timer(loop->getTimerMgr())
+DelayedTaskSlot::DelayedTaskSlot(EventLoop::Impl *loop, EventLoop::Task &&t, std::string debugStr)
+    : TaskSlot(std::move(t), std::move(debugStr)), timer(loop->getTimerMgr())
 {
-
+    
 }
 
 /////////////////////////////////////////////////////////////////
@@ -448,30 +410,34 @@ EventLoopPtr EventLoop::Token::Impl::eventLoop()
     return loop_.lock();
 }
 
-void EventLoop::Token::Impl::appendTaskNode(TaskNodePtr &node)
+void EventLoop::Token::Impl::appendTaskNode(TaskSlotPtr &node)
 {
+    clearInactiveTask();
     task_nodes_.emplace_back(node);
 }
 
-void EventLoop::Token::Impl::removeTaskNode(TaskNodePtr &node)
+void EventLoop::Token::Impl::clearInactiveTask()
 {
-    for (auto it = task_nodes_.begin(); it != task_nodes_.end(); ++it) {
-        if (*it == node) {
-            task_nodes_.erase(it);
+    for (auto it = task_nodes_.begin(); it != task_nodes_.end(); ) {
+        if (!(*it)->isActive()) {
+            it = task_nodes_.erase(it);
+        } else {
             break;
         }
     }
 }
 
-void EventLoop::Token::Impl::appendDelayedTaskNode(DelayedTaskNodePtr &node)
+void EventLoop::Token::Impl::appendDelayedTaskNode(DelayedTaskSlotPtr &node)
 {
+    clearInactiveDelayedTask();
     dtask_nodes_.emplace_back(node);
 }
 
-void EventLoop::Token::Impl::removeDelayedTaskNode(DelayedTaskNodePtr &node)
+void EventLoop::Token::Impl::clearInactiveDelayedTask()
 {
     for (auto it = dtask_nodes_.begin(); it != dtask_nodes_.end(); ++it) {
-        if (*it == node) {
+        if (!(*it)->isActive()) {
+            (*it)->cancel();
             dtask_nodes_.erase(it);
             break;
         }
