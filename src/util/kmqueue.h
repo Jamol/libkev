@@ -68,7 +68,7 @@ public:
     E& front() {
         auto *node = head_->next_.load(std::memory_order_acquire);
         if (node == nullptr) {
-            static E E_empty = E();
+            static E E_empty{};
             return E_empty;
         }
         return node->element_;
@@ -125,6 +125,7 @@ public:
         template<class... Args>
         DLNode(Args&&... args) : element_{ std::forward<Args>(args)... } {}
         E& element() { return element_; }
+        bool isLinked() const { return prev_ || next_; }
         
     private:
         friend class DLQueue;
@@ -175,7 +176,7 @@ public:
     E& front()
     {
         if(empty()) {
-            static E E_empty = E();
+            static E E_empty{};
             return E_empty;
         }
         return head_->element_;

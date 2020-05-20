@@ -189,7 +189,6 @@ void EventLoop::Impl::removePendingObject(PendingObject *obj)
 
 void EventLoop::Impl::processTasks()
 {
-
     TaskQueue tq;
     {
         std::unique_lock<LockType> ul(task_mutex_);
@@ -463,7 +462,6 @@ void EventLoop::Token::Impl::reset()
             loop->removeObserver(this);
             obs_token_.reset();
         }
-        loop_.reset();
     } else {
         task_nodes_.clear();
     }

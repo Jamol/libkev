@@ -109,8 +109,11 @@ bool TimerManager::scheduleTimer(TimerNode *timer_node, uint32_t delay_ms, Timer
     {
         std::unique_lock<std::mutex> ul(mutex_);
         timer_node->cancelled_ = false;
-        if (timer_node == running_node_ && !loop_->inSameThread()) {
+        /*if (timer_node == running_node_ && !loop_->inSameThread()) {
             // timer is running, user may reschedule the timer in callback
+            if(reschedule_node_ == timer_node) {
+                reschedule_node_ = nullptr;
+            }
             ul.unlock();
             running_mutex_.lock();
             if(running_node_ == timer_node) {
@@ -122,9 +125,12 @@ bool TimerManager::scheduleTimer(TimerNode *timer_node, uint32_t delay_ms, Timer
                 // timer is cancelled in callback
                 return false;
             }
-        }
+        }*/
         if(isTimerPending(timer_node)) {
             removeTimer(timer_node);
+        }
+        if(reschedule_node_ == timer_node) {
+            reschedule_node_ = nullptr;
         }
         timer_node->start_tick_ = now_tick;
         timer_node->delay_ms_ = delay_ms;
@@ -132,9 +138,6 @@ bool TimerManager::scheduleTimer(TimerNode *timer_node, uint32_t delay_ms, Timer
         timer_node->cb_ = std::move(cb);
         
         ret = addTimer(timer_node, FROM_SCHEDULE);
-        if(reschedule_node_ == timer_node) {
-            reschedule_node_ = nullptr;
-        }
         long diff = long(now_tick - last_tick_);
         if(last_remain_ms_ == -1 || (diff >= 0 && delay_ms < last_remain_ms_ - diff)) {
             // need update poll wait time
@@ -156,6 +159,9 @@ void TimerManager::cancelTimer(TimerNode *timer_node)
 
     std::unique_lock<std::mutex> ul(mutex_);
     if (running_node_ == timer_node && !loop_->inSameThread()) {
+        if(reschedule_node_ == timer_node) {
+            reschedule_node_ = nullptr;
+        }
         ul.unlock();
         running_mutex_.lock();
         if(running_node_ == timer_node) {
