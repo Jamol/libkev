@@ -22,7 +22,7 @@
 #ifndef __kev_util_h__
 #define __kev_util_h__
 
-#include "kevdefs.h"
+#include "../../include/kevdefs.h"
 
 #ifdef KUMA_OS_WIN
 # include <Ws2tcpip.h>

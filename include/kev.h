@@ -207,6 +207,7 @@ public:
     void loopOnce(uint32_t max_wait_ms);
     void loop(uint32_t max_wait_ms = -1);
     void stop();
+    bool stopped() const;
     
     class Impl;
     Impl* pimpl();

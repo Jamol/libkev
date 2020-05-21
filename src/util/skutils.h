@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include "kevdefs.h"
+#include "../../include/kevdefs.h"
 
 #ifdef KUMA_OS_WIN
 # include <Ws2tcpip.h>

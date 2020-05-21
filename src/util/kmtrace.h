@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include "kmconf.h"
+#include "../../include/kmconf.h"
 
 #include <sstream>
 #include <assert.h>
