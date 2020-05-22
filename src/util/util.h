@@ -97,21 +97,21 @@ int set_tcpnodelay(SOCKET_FD fd);
 int find_first_set(uint32_t b);
 int find_first_set(uint64_t b);
 TICK_COUNT_TYPE get_tick_count_ms();
-TICK_COUNT_TYPE calc_time_elapse_delta_ms(TICK_COUNT_TYPE now_tick, TICK_COUNT_TYPE& start_tick);
+TICK_COUNT_TYPE calc_time_elapse_delta_ms(TICK_COUNT_TYPE now_tick, TICK_COUNT_TYPE &start_tick);
 
-bool is_equal(const char* str1, const char* str2);
-bool is_equal(const std::string& str1, const std::string& str2);
-bool is_equal(const char* str1, const std::string& str2);
-bool is_equal(const std::string& str1, const char* str2);
-bool is_equal(const char* str1, const char* str2, int n);
-bool is_equal(const std::string& str1, const std::string& str2, int n);
-bool is_equal(const char* str1, const std::string& str2, int n);
-bool is_equal(const std::string& str1, const char* str2, int n);
-char* trim_left(char* str, char c);
-char* trim_right(char* str, char c);
-char* trim_right(char* str, char* str_end, char c);
-std::string& trim_left(std::string& str, char c);
-std::string& trim_right(std::string& str, char c);
+bool is_equal(const char *str1, const char *str2);
+bool is_equal(const std::string &str1, const std::string &str2);
+bool is_equal(const char *str1, const std::string &str2);
+bool is_equal(const std::string &str1, const char *str2);
+bool is_equal(const char *str1, const char *str2, int n);
+bool is_equal(const std::string &str1, const std::string &str2, int n);
+bool is_equal(const char *str1, const std::string &str2, int n);
+bool is_equal(const std::string &str1, const char *str2, int n);
+char* trim_left(char *str, char c);
+char* trim_right(char *str, char c);
+char* trim_right(char *str, char *str_end, char c);
+std::string& trim_left(std::string &str, char c);
+std::string& trim_right(std::string &str, char c);
 
 std::string getExecutablePath();
 std::string getCurrentModulePath();
@@ -130,26 +130,32 @@ void for_each_token(const std::string &tokens, char delim, LAMBDA &&func)
         }
     }
 }
-bool contains_token(const std::string& tokens, const std::string& token, char delim);
-bool remove_token(std::string& tokens, const std::string& token, char delim);
+bool contains_token(const std::string &tokens, const std::string &token, char delim);
+bool remove_token(std::string &tokens, const std::string &token, char delim);
 
 
 int generateRandomBytes(uint8_t *buf, int len);
 
-extern "C" {
-    KEV_API int km_resolve_2_ip(const char* host_name, char *ip_buf, int ip_buf_len, int ipv = 0);
-    KEV_API int km_parse_address(const char* addr,
-                         char* proto, int proto_len,
-                         char* host, int  host_len, unsigned short* port);
-    KEV_API int km_set_sock_addr(const char* addr, unsigned short port,
-                         addrinfo* hints, sockaddr * sk_addr,
-                         unsigned int sk_addr_len);
-    KEV_API int km_get_sock_addr(const sockaddr * sk_addr, unsigned int sk_addr_len,
-                         char* addr, unsigned int addr_len, unsigned short* port);
-    KEV_API bool km_is_ipv6_address(const char* addr);
-    KEV_API bool km_is_ip_address(const char* addr);
-    KEV_API bool km_is_mcast_address(const char* addr);
-}
+int km_resolve_2_ip(const char *host_name, char *ip_buf, int ip_buf_len, int ipv = 0);
+int km_parse_address(const char *addr,
+                     char* proto, 
+                     int proto_len,
+                     char *host, 
+                     int  host_len, 
+                     unsigned short *port);
+int km_set_sock_addr(const char *addr, 
+                     unsigned short port,
+                     addrinfo *hints, 
+                     sockaddr *sk_addr,
+                     unsigned int sk_addr_len);
+int km_get_sock_addr(const sockaddr *sk_addr, 
+                     unsigned int sk_addr_len,
+                     char *addr, 
+                     unsigned int addr_len, 
+                     unsigned short *port);
+bool km_is_ipv6_address(const char *addr);
+bool km_is_ip_address(const char *addr);
+bool km_is_mcast_address(const char *addr);
 
 int km_get_sock_addr(const sockaddr *addr, size_t addr_len, std::string &ip, uint16_t *port);
 int km_get_sock_addr(const sockaddr_storage &addr, std::string &ip, uint16_t *port);
@@ -162,7 +168,7 @@ inline bool km_is_fatal_error(Result err)
 }
 
 std::string getDateTimeString(bool utc);
-void setCurrentThreadName(const char* name);
+void setCurrentThreadName(const char *name);
 
 KEV_NS_END
 

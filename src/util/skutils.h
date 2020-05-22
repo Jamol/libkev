@@ -15,6 +15,7 @@
 #else // KUMA_OS_WIN
 # include <unistd.h>
 # include <netdb.h>
+# include <errno.h>
 # include <sys/uio.h>
 # include <sys/socket.h>
 #endif

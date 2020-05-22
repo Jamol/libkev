@@ -30,7 +30,7 @@
 KEV_NS_BEGIN
 
 
-class KEV_API EventLoop
+class EventLoop
 {
 public:
     using Task = std::function<void(void)>;
@@ -216,7 +216,7 @@ private:
     Impl* pimpl_;
 };
 
-class KEV_API Timer
+class Timer
 {
 public:
     using TimerCallback = std::function<void(void)>;
@@ -259,7 +259,7 @@ private:
 
 // msg is null-terminated and msg_len doesn't include '\0'
 using LogCallback = void(*)(int level, const char* msg, size_t msg_len);
-KEV_API void setLogCallback(LogCallback cb);
+void setLogCallback(LogCallback cb);
 
 KEV_NS_END
 

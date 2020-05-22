@@ -80,7 +80,7 @@ enum{
 
 
 #if 0
-int km_resolve_2_ip_v4(const char* host_name, char *ip_buf, int ip_buf_len)
+int km_resolve_2_ip_v4(const char *host_name, char *ip_buf, int ip_buf_len)
 {
     const char* ptr = host_name;
     bool is_digit = true;
@@ -138,7 +138,7 @@ int km_resolve_2_ip_v4(const char* host_name, char *ip_buf, int ip_buf_len)
 }
 #endif
 
-extern "C" int km_resolve_2_ip(const char* host_name, char *ip_buf, int ip_buf_len, int ipv)
+int km_resolve_2_ip(const char *host_name, char *ip_buf, int ip_buf_len, int ipv)
 {
     if(!host_name || !ip_buf) {
         return -1;
@@ -195,9 +195,11 @@ extern "C" int km_resolve_2_ip(const char* host_name, char *ip_buf, int ip_buf_l
     return 0;
 }
 
-extern "C" int km_set_sock_addr(const char* addr, unsigned short port,
-                                struct addrinfo* hints, struct sockaddr * sk_addr,
-                                unsigned int sk_addr_len)
+int km_set_sock_addr(const char *addr, 
+                     unsigned short port,
+                     addrinfo *hints, 
+                     sockaddr *sk_addr,
+                     unsigned int sk_addr_len)
 {
     char service[128] = {0};
     struct addrinfo* ai = nullptr;
@@ -221,8 +223,11 @@ extern "C" int km_set_sock_addr(const char* addr, unsigned short port,
     return 0;
 }
 
-extern "C" int km_get_sock_addr(const sockaddr *sk_addr, unsigned int sk_addr_len,
-                                char *addr, unsigned int addr_len, unsigned short *port)
+int km_get_sock_addr(const sockaddr *sk_addr, 
+                     unsigned int sk_addr_len,
+                     char *addr, 
+                     unsigned int addr_len, 
+                     unsigned short *port)
 {
     char service[16] = {0};
     if(km_getnameinfo(sk_addr, sk_addr_len, addr, addr_len, service, sizeof(service), NI_NUMERICHOST|NI_NUMERICSERV) != 0)
@@ -279,7 +284,7 @@ int km_get_addr_length(const sockaddr_storage &addr)
     return addr_len;
 }
 
-extern "C" bool km_is_ipv6_address(const char* addr)
+bool km_is_ipv6_address(const char *addr)
 {
     sockaddr_storage ss_addr = {0};
     struct addrinfo hints = {0};
@@ -291,7 +296,7 @@ extern "C" bool km_is_ipv6_address(const char* addr)
     return AF_INET6==ss_addr.ss_family;
 }
 
-extern "C" bool km_is_ip_address(const char* addr)
+bool km_is_ip_address(const char *addr)
 {
     sockaddr_storage ss_addr = {0};
     struct addrinfo hints = {0};
@@ -300,7 +305,7 @@ extern "C" bool km_is_ip_address(const char* addr)
     return km_set_sock_addr(addr, 0, &hints, (struct sockaddr *)&ss_addr, sizeof(ss_addr)) == 0;
 }
 
-extern "C" bool km_is_mcast_address(const char* addr)
+bool km_is_mcast_address(const char *addr)
 {
     sockaddr_storage ss_addr = {0};
     struct addrinfo hints = {0};
@@ -321,9 +326,12 @@ extern "C" bool km_is_mcast_address(const char* addr)
     return false;
 }
 
-extern "C" int km_parse_address(const char* addr,
-                                char* proto, int proto_len,
-                                char* host, int  host_len, unsigned short* port)
+int km_parse_address(const char *addr,
+                     char *proto, 
+                     int proto_len,
+                     char *host, 
+                     int host_len, 
+                     unsigned short *port)
 {
     if(!addr || !host)
         return -1;
@@ -452,7 +460,7 @@ TICK_COUNT_TYPE get_tick_count_ms()
 	return (TICK_COUNT_TYPE)_now_ms.count();
 }
 
-TICK_COUNT_TYPE calc_time_elapse_delta_ms(TICK_COUNT_TYPE now_tick, TICK_COUNT_TYPE& start_tick)
+TICK_COUNT_TYPE calc_time_elapse_delta_ms(TICK_COUNT_TYPE now_tick, TICK_COUNT_TYPE &start_tick)
 {
     if(now_tick - start_tick > (((TICK_COUNT_TYPE)-1)>>1)) {
         start_tick = now_tick;
@@ -463,56 +471,56 @@ TICK_COUNT_TYPE calc_time_elapse_delta_ms(TICK_COUNT_TYPE now_tick, TICK_COUNT_T
 
 #if 0
 // need c++ 14
-bool is_equal(const std::string& s1, const std::string& s2)
+bool is_equal(const std::string &s1, const std::string &s2)
 {
     return std::equal(s1.begin(), s1.end(), s2.begin(), s2.end(),
-        [] (const char& ch1, const char& ch2) {
+        [] (const char &ch1, const char &ch2) {
             return std::toupper(ch1) == std::toupper(ch2);
     });
 }
 #endif
 
-bool is_equal(const char* str1, const char* str2)
+bool is_equal(const char *str1, const char *str2)
 {
     return strcasecmp(str1, str2) == 0;
 }
 
-bool is_equal(const std::string& str1, const std::string& str2)
+bool is_equal(const std::string &str1, const std::string &str2)
 {
     return str1.length() == str2.length() && strcasecmp(str1.c_str(), str2.c_str()) == 0;
 }
 
-bool is_equal(const char* str1, const std::string& str2)
+bool is_equal(const char *str1, const std::string &str2)
 {
     return strcasecmp(str1, str2.c_str()) == 0;
 }
 
-bool is_equal(const std::string& str1, const char* str2)
+bool is_equal(const std::string &str1, const char *str2)
 {
     return strcasecmp(str1.c_str(), str2) == 0;
 }
 
-bool is_equal(const char* str1, const char* str2, int n)
+bool is_equal(const char *str1, const char *str2, int n)
 {
     return strncasecmp(str1, str2, n) == 0;
 }
 
-bool is_equal(const std::string& str1, const std::string& str2, int n)
+bool is_equal(const std::string &str1, const std::string &str2, int n)
 {
     return strncasecmp(str1.c_str(), str2.c_str(), n) == 0;
 }
 
-bool is_equal(const char* str1, const std::string& str2, int n)
+bool is_equal(const char *str1, const std::string &str2, int n)
 {
     return strncasecmp(str1, str2.c_str(), n) == 0;
 }
 
-bool is_equal(const std::string& str1, const char* str2, int n)
+bool is_equal(const std::string &str1, const char *str2, int n)
 {
     return strncasecmp(str1.c_str(), str2, n) == 0;
 }
 
-char* trim_left(char* str, char c)
+char* trim_left(char *str, char c)
 {
     while (*str && *str++ == c) {
         ;
@@ -521,12 +529,12 @@ char* trim_left(char* str, char c)
     return str;
 }
 
-char* trim_right(char* str, char c)
+char* trim_right(char *str, char c)
 {
     return trim_right(str, str + strlen(str), c);
 }
 
-char* trim_right(char* str, char* str_end, char c)
+char* trim_right(char *str, char *str_end, char c)
 {
     while (--str_end >= str && *str_end == c) {
         ;
@@ -536,13 +544,13 @@ char* trim_right(char* str, char* str_end, char c)
     return str;
 }
 
-std::string& trim_left(std::string& str, char c)
+std::string& trim_left(std::string &str, char c)
 {
     str.erase(0, str.find_first_not_of(c));
     return str;
 }
 
-std::string& trim_right(std::string& str, char c)
+std::string& trim_right(std::string &str, char c)
 {
     auto pos = str.find_last_not_of(c);
     if(pos != std::string::npos) {
@@ -551,7 +559,7 @@ std::string& trim_right(std::string& str, char c)
     return str;
 }
 
-bool contains_token(const std::string& str, const std::string& token, char delim)
+bool contains_token(const std::string &str, const std::string &token, char delim)
 {
     bool found = false;
     for_each_token(str, delim, [&found, &token](std::string &t){
@@ -565,7 +573,7 @@ bool contains_token(const std::string& str, const std::string& token, char delim
     return found;
 }
 
-bool remove_token(std::string& tokens, const std::string& token, char delim)
+bool remove_token(std::string &tokens, const std::string &token, char delim)
 {
     bool removed = false;
     std::string str;
@@ -757,7 +765,7 @@ std::wstring utf8_decode(const std::string &str)
     return wstrTo;
 }
 
-void setCurrentThreadNameX(const char* name)
+void setCurrentThreadNameX(const char *name)
 {
     struct {
         DWORD dwType;
@@ -775,7 +783,7 @@ void setCurrentThreadNameX(const char* name)
 }
 #endif // KUMA_OS_WIN
 
-void setCurrentThreadName(const char* name)
+void setCurrentThreadName(const char *name)
 {
 #if defined(KUMA_OS_WIN)
 #ifndef __WINRT__
