@@ -74,13 +74,9 @@ enum{
     KM_RESOLVE_IPV6    = 2
 };
 
-#define km_getaddrinfo getaddrinfo
-#define km_getnameinfo getnameinfo
-#define km_freeaddrinfo freeaddrinfo
-
 
 #if 0
-int km_resolve_2_ip_v4(const char *host_name, char *ip_buf, int ip_buf_len)
+int km_resolve_2_ip_v4(const char *host_name, char *ip_buf, size_t ip_buf_len)
 {
     const char* ptr = host_name;
     bool is_digit = true;
@@ -138,7 +134,7 @@ int km_resolve_2_ip_v4(const char *host_name, char *ip_buf, int ip_buf_len)
 }
 #endif
 
-int km_resolve_2_ip(const char *host_name, char *ip_buf, int ip_buf_len, int ipv)
+int km_resolve_2_ip(const char *host_name, char *ip_buf, size_t ip_buf_len, int ipv)
 {
     if(!host_name || !ip_buf) {
         return -1;
@@ -156,10 +152,14 @@ int km_resolve_2_ip(const char *host_name, char *ip_buf, int ip_buf_len, int ipv
         hints.ai_family = AF_UNSPEC;
     }
     hints.ai_flags = AI_ADDRCONFIG; // will block 10 seconds in some case if not set AI_ADDRCONFIG
-    if(km_getaddrinfo(host_name, nullptr, &hints, &ai) != 0 || !ai) {
+    if(getaddrinfo(host_name, nullptr, &hints, &ai) != 0 || !ai) {
         return -1;
     }
-    
+#ifdef KUMA_OS_WIN
+    auto ip_buf_size = static_cast<DWORD>(ip_buf_len);
+#else
+    auto ip_buf_size = ip_buf_len;
+#endif
 	for (addrinfo *aii = ai; aii; aii = aii->ai_next)
     {
         if(AF_INET6 == aii->ai_family && (KM_RESOLVE_IPV6 == ipv || KM_RESOLVE_IPV0 == ipv))
@@ -169,29 +169,29 @@ int km_resolve_2_ip(const char *host_name, char *ip_buf, int ip_buf_len, int ipv
                 continue;
             if(IN6_IS_ADDR_SITELOCAL(&(sa6->sin6_addr)))
                 continue;
-            if(km_getnameinfo(aii->ai_addr, static_cast<socklen_t>(aii->ai_addrlen), 
-                ip_buf, ip_buf_len, NULL, 0, NI_NUMERICHOST|NI_NUMERICSERV) != 0)
+            if(getnameinfo(aii->ai_addr, static_cast<socklen_t>(aii->ai_addrlen), 
+                ip_buf, ip_buf_size, NULL, 0, NI_NUMERICHOST|NI_NUMERICSERV) != 0)
                 continue;
             else
                 break; // found a ipv6 address
         }
         else if(AF_INET == aii->ai_family && (KM_RESOLVE_IPV4 == ipv || KM_RESOLVE_IPV0 == ipv))
         {
-            if(km_getnameinfo(aii->ai_addr, static_cast<socklen_t>(aii->ai_addrlen), 
-                ip_buf, ip_buf_len, NULL, 0, NI_NUMERICHOST|NI_NUMERICSERV) != 0)
+            if(getnameinfo(aii->ai_addr, static_cast<socklen_t>(aii->ai_addrlen), 
+                ip_buf, ip_buf_size, NULL, 0, NI_NUMERICHOST|NI_NUMERICSERV) != 0)
                 continue;
             else
                 break; // found a ipv4 address
         }
     }
     if('\0' == ip_buf[0] && KM_RESOLVE_IPV0 == ipv &&
-       km_getnameinfo(ai->ai_addr, static_cast<socklen_t>(ai->ai_addrlen), 
-           ip_buf, ip_buf_len, NULL, 0, NI_NUMERICHOST|NI_NUMERICSERV) != 0)
+        getnameinfo(ai->ai_addr, static_cast<socklen_t>(ai->ai_addrlen), 
+           ip_buf, ip_buf_size, NULL, 0, NI_NUMERICHOST|NI_NUMERICSERV) != 0)
     {
-        km_freeaddrinfo(ai);
+        freeaddrinfo(ai);
         return -1;
     }
-    km_freeaddrinfo(ai);
+    freeaddrinfo(ai);
     return 0;
 }
 
@@ -199,7 +199,7 @@ int km_set_sock_addr(const char *addr,
                      unsigned short port,
                      addrinfo *hints, 
                      sockaddr *sk_addr,
-                     unsigned int sk_addr_len)
+                     size_t sk_addr_len)
 {
     char service[128] = {0};
     struct addrinfo* ai = nullptr;
@@ -207,30 +207,36 @@ int km_set_sock_addr(const char *addr,
         hints->ai_flags |= AI_PASSIVE;
     }
     snprintf(service, sizeof(service)-1, "%d", port);
-    auto ret = km_getaddrinfo(addr, service, hints, &ai);
+    auto ret = getaddrinfo(addr, service, hints, &ai);
     if(ret != 0 || !ai) {
-        if(ai) km_freeaddrinfo(ai);
+        if(ai) freeaddrinfo(ai);
         return ret;
     }
     if (ai->ai_addrlen > sk_addr_len) {
-        if(ai) km_freeaddrinfo(ai);
+        if(ai) freeaddrinfo(ai);
         return -1;
     }
     if(sk_addr) {
         memcpy(sk_addr, ai->ai_addr, ai->ai_addrlen);
     }
-    km_freeaddrinfo(ai);
+    freeaddrinfo(ai);
     return 0;
 }
 
 int km_get_sock_addr(const sockaddr *sk_addr, 
-                     unsigned int sk_addr_len,
+                     size_t sk_addr_len,
                      char *addr, 
-                     unsigned int addr_len, 
+                     size_t addr_len, 
                      unsigned short *port)
 {
+#ifdef KUMA_OS_WIN
+    auto addr_size = static_cast<DWORD>(addr_len);
+#else
+    auto addr_size = addr_len;
+#endif
     char service[16] = {0};
-    if(km_getnameinfo(sk_addr, sk_addr_len, addr, addr_len, service, sizeof(service), NI_NUMERICHOST|NI_NUMERICSERV) != 0)
+    if(getnameinfo(sk_addr, static_cast<socklen_t>(sk_addr_len), 
+        addr, addr_size, service, sizeof(service), NI_NUMERICHOST|NI_NUMERICSERV) != 0)
         return -1;
     if(port)
         *port = atoi(service);
@@ -240,7 +246,7 @@ int km_get_sock_addr(const sockaddr *sk_addr,
 int km_get_sock_addr(const sockaddr *addr, size_t addr_len, std::string &ip, uint16_t *port)
 {
     char ip_buf[128] = {0};
-    if (km_get_sock_addr(addr, (unsigned int)addr_len, ip_buf, sizeof(ip_buf), port) != 0) {
+    if (km_get_sock_addr(addr, addr_len, ip_buf, sizeof(ip_buf), port) != 0) {
         return -1;
     }
     ip = ip_buf;
@@ -250,7 +256,7 @@ int km_get_sock_addr(const sockaddr *addr, size_t addr_len, std::string &ip, uin
 int km_get_sock_addr(const sockaddr_storage &addr, std::string &ip, uint16_t *port)
 {
     char ip_buf[128] = { 0 };
-    int addr_len = km_get_addr_length(addr);
+    auto addr_len = km_get_addr_length(addr);
     if (km_get_sock_addr((const sockaddr *)&addr, addr_len, ip_buf, sizeof(ip_buf), port) != 0) {
         return -1;
     }
@@ -272,9 +278,9 @@ int km_set_addr_port(uint16_t port, sockaddr_storage &addr)
     return 0;
 }
 
-int km_get_addr_length(const sockaddr_storage &addr)
+size_t km_get_addr_length(const sockaddr_storage &addr)
 {
-    int addr_len = sizeof(addr);
+    size_t addr_len = sizeof(addr);
     if (AF_INET == addr.ss_family) {
         addr_len = sizeof(sockaddr_in);
     }
@@ -328,22 +334,18 @@ bool km_is_mcast_address(const char *addr)
 
 int km_parse_address(const char *addr,
                      char *proto, 
-                     int proto_len,
+                     size_t proto_len,
                      char *host, 
-                     int host_len, 
+                     size_t host_len, 
                      unsigned short *port)
 {
     if(!addr || !host)
         return -1;
     
-    const char* tmp1 = nullptr;
-    int tmp_len = 0;
     const char* tmp = strstr(addr, "://");
     if(tmp) {
-        tmp_len = int(proto_len > tmp-addr?
-            tmp-addr:proto_len-1);
-        
         if(proto) {
+            auto tmp_len = (std::min)(proto_len-1, static_cast<size_t>(tmp-addr));
             memcpy(proto, addr, tmp_len);
             proto[tmp_len] = '\0';
         }
@@ -353,17 +355,17 @@ int km_parse_address(const char *addr,
         tmp = addr;
     }
     const char* end = strchr(tmp, '/');
-    if(!end)
+    if(!end) {
         end = addr + strlen(addr);
+    }
     
-    tmp1 = strchr(tmp, '[');
+    const char* tmp1 = strchr(tmp, '[');
     if(tmp1) {// ipv6 address
         tmp = tmp1 + 1;
         tmp1 = strchr(tmp, ']');
         if(!tmp1)
             return -1;
-        tmp_len = int(host_len>tmp1-tmp?
-            tmp1-tmp:host_len-1);
+        auto tmp_len = (std::min)(host_len-1, static_cast<size_t>(tmp1-tmp));
         memcpy(host, tmp, tmp_len);
         host[tmp_len] = '\0';
         tmp = tmp1 + 1;
@@ -375,14 +377,12 @@ int km_parse_address(const char *addr,
     } else {// ipv4 address
         tmp1 = strchr(tmp, ':');
         if(tmp1 && tmp1 <= end) {
-            tmp_len = int(host_len>tmp1-tmp?
-                tmp1-tmp:host_len-1);
+            auto tmp_len = (std::min)(host_len-1, static_cast<size_t>(tmp1-tmp));
             memcpy(host, tmp, tmp_len);
             host[tmp_len] = '\0';
             tmp = tmp1 + 1;
         } else {
-            tmp_len = int(host_len>end-tmp?
-                end-tmp:host_len-1);
+            auto tmp_len = (std::min)(host_len-1, static_cast<size_t>(end-tmp));
             memcpy(host, tmp, tmp_len);
             host[tmp_len] = '\0';
             tmp = nullptr;

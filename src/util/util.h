@@ -136,22 +136,22 @@ bool remove_token(std::string &tokens, const std::string &token, char delim);
 
 int generateRandomBytes(uint8_t *buf, int len);
 
-int km_resolve_2_ip(const char *host_name, char *ip_buf, int ip_buf_len, int ipv = 0);
+int km_resolve_2_ip(const char *host_name, char *ip_buf, size_t ip_buf_len, int ipv = 0);
 int km_parse_address(const char *addr,
                      char* proto, 
-                     int proto_len,
+                     size_t proto_len,
                      char *host, 
-                     int  host_len, 
+                     size_t host_len, 
                      unsigned short *port);
 int km_set_sock_addr(const char *addr, 
                      unsigned short port,
                      addrinfo *hints, 
                      sockaddr *sk_addr,
-                     unsigned int sk_addr_len);
+                     size_t sk_addr_len);
 int km_get_sock_addr(const sockaddr *sk_addr, 
-                     unsigned int sk_addr_len,
+                     size_t sk_addr_len,
                      char *addr, 
-                     unsigned int addr_len, 
+                     size_t addr_len, 
                      unsigned short *port);
 bool km_is_ipv6_address(const char *addr);
 bool km_is_ip_address(const char *addr);
@@ -160,7 +160,7 @@ bool km_is_mcast_address(const char *addr);
 int km_get_sock_addr(const sockaddr *addr, size_t addr_len, std::string &ip, uint16_t *port);
 int km_get_sock_addr(const sockaddr_storage &addr, std::string &ip, uint16_t *port);
 int km_set_addr_port(uint16_t port, sockaddr_storage &addr);
-int km_get_addr_length(const sockaddr_storage &addr);
+size_t km_get_addr_length(const sockaddr_storage &addr);
 
 inline bool km_is_fatal_error(Result err)
 {

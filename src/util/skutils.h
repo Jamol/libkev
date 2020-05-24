@@ -30,6 +30,7 @@ using ssize_t = std::make_signed_t<size_t>;
 #else
 # define SK_CONST_BUF_LEN   buf,len
 # define SK_BUF_LEN         buf,len
+using ssize_t = ssize_t;
 #endif
 
 class SKUtils
@@ -212,3 +213,6 @@ public:
 };
 
 KEV_NS_END
+
+#undef SK_BUF_LEN
+#undef SK_CONST_BUF_LEN
