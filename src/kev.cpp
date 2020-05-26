@@ -233,7 +233,7 @@ Timer& Timer::operator=(Timer &&other)
     return *this;
 }
 
-bool Timer::schedule(uint32_t delay_ms, TimerMode mode, TimerCallback cb)
+bool Timer::schedule(uint32_t delay_ms, Mode mode, TimerCallback cb)
 {
     return pimpl_->schedule(delay_ms, mode, std::move(cb));
 }

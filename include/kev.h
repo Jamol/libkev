@@ -220,6 +220,10 @@ class Timer
 {
 public:
     using TimerCallback = std::function<void(void)>;
+    enum class Mode {
+        ONE_SHOT,
+        REPEATING
+    };
     
     Timer(EventLoop *loop);
     Timer(const Timer &) = delete;
@@ -233,7 +237,7 @@ public:
      * Schedule the timer. This API is thread-safe
      */
     template<typename F, std::enable_if_t<!std::is_copy_constructible<F>{}, int> = 0>
-    bool schedule(uint32_t delay_ms, TimerMode mode, F &&f)
+    bool schedule(uint32_t delay_ms, Mode mode, F &&f)
     {
         lambda_wrapper<F> wf{std::forward<F>(f)};
         return schedule(delay_ms, mode, TimerCallback(std::move(wf)));
@@ -242,7 +246,7 @@ public:
     // 1. timer is cancelled
     // 2. timer is executed and TimerMode is ONE_SHOT
     // 3. the TimerManager in EventLoop is destroyed and timer is still in queue
-    bool schedule(uint32_t delay_ms, TimerMode mode, TimerCallback cb);
+    bool schedule(uint32_t delay_ms, Mode mode, TimerCallback cb);
     
     /**
      * Cancel the scheduled timer. This API is thread-safe

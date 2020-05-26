@@ -49,7 +49,7 @@ public:
     TimerManager(EventLoop::Impl* loop);
     ~TimerManager();
 
-    bool scheduleTimer(TimerNode *timer, uint32_t delay_ms, TimerMode mode, TimerCallback cb);
+    bool scheduleTimer(TimerNode *timer, uint32_t delay_ms, Timer::Mode mode, TimerCallback cb);
     void cancelTimer(TimerNode *timer);
 
     int checkExpire(unsigned long* remain_ms = nullptr);
@@ -143,12 +143,12 @@ public:
     ~Impl();
     
     template<typename F, std::enable_if_t<!std::is_copy_constructible<F>{}, int> = 0>
-    bool schedule(uint32_t delay_ms, TimerMode mode, F &&f)
+    bool schedule(uint32_t delay_ms, Mode mode, F &&f)
     {
         lambda_wrapper<F> wf{std::forward<F>(f)};
         return schedule(delay_ms, mode, TimerCallback(std::move(wf)));
     }
-    bool schedule(uint32_t delay_ms, TimerMode mode, TimerCallback cb);
+    bool schedule(uint32_t delay_ms, Mode mode, TimerCallback cb);
     void cancel();
     
 private:

@@ -302,7 +302,7 @@ Result EventLoop::Impl::appendDelayedTask(uint32_t delay_ms, Task task, EventLoo
     }
     // NOTE: ptr is stored in TimerCallback, so no queue is needed for DelayedTaskSlot.
     // ptr will be released after timer cancelled or executed, or TimerManager destructed
-    ptr->timer.schedule(delay_ms, TimerMode::ONE_SHOT, [ptr=std::move(ptr)] () mutable {
+    ptr->timer.schedule(delay_ms, Timer::Mode::ONE_SHOT, [ptr=std::move(ptr)] () mutable {
         (*ptr)();
         ptr.reset();
     });

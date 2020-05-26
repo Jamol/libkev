@@ -47,7 +47,7 @@ Timer::Impl::~Impl()
     cancel();
 }
 
-bool Timer::Impl::schedule(uint32_t delay_ms, TimerMode mode, TimerCallback cb)
+bool Timer::Impl::schedule(uint32_t delay_ms, Mode mode, TimerCallback cb)
 {
     TimerManagerPtr mgr = timer_mgr_.lock();
     if(mgr) {
@@ -98,7 +98,7 @@ TimerManager::~TimerManager()
     }
 }
 
-bool TimerManager::scheduleTimer(TimerNode *timer_node, uint32_t delay_ms, TimerMode mode, TimerCallback cb)
+bool TimerManager::scheduleTimer(TimerNode *timer_node, uint32_t delay_ms, Timer::Mode mode, TimerCallback cb)
 {
     if(isTimerPending(timer_node) && delay_ms == timer_node->delay_ms_) {
         return true;
@@ -134,7 +134,7 @@ bool TimerManager::scheduleTimer(TimerNode *timer_node, uint32_t delay_ms, Timer
         }
         timer_node->start_tick_ = now_tick;
         timer_node->delay_ms_ = delay_ms;
-        timer_node->repeating_ = mode == TimerMode::REPEATING;
+        timer_node->repeating_ = mode == Timer::Mode::REPEATING;
         timer_node->cb_ = std::move(cb);
         
         ret = addTimer(timer_node, FROM_SCHEDULE);
