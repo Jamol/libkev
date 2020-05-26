@@ -50,7 +50,7 @@ int main(int argc, const char * argv[])
     });
     
     Timer timer(&run_loop);
-    timer.schedule(3000, TimerMode::ONE_SHOT, [&] {
+    timer.schedule(3000, Timer::Mode::ONE_SHOT, [&] {
         printf("onTimer\n");
 
         run_loop.stop();
