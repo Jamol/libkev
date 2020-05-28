@@ -593,20 +593,21 @@ bool remove_token(std::string &tokens, const std::string &token, char delim)
     return removed;
 }
 
-int generateRandomBytes(uint8_t *buf, int len)
+size_t generateRandomBytes(void *buf, size_t len)
 {
-    using bytes_randomizer = std::independent_bits_engine<std::default_random_engine, CHAR_BIT, unsigned long>;
+    using rand_type = unsigned int;
+    using bytes_randomizer = std::independent_bits_engine<std::default_random_engine, sizeof(rand_type)*8, rand_type>;
     
-    auto sl = len / sizeof(unsigned long);
-    auto rl = len - sl * sizeof(unsigned long);
-    auto *p = reinterpret_cast<unsigned long*>(buf);
+    auto sl = len / sizeof(rand_type);
+    auto rl = len - sl * sizeof(rand_type);
+    auto *p = static_cast<rand_type*>(buf);
     bytes_randomizer br(std::random_device{}());
     if (sl > 0) {
         std::generate(p, p + sl, std::ref(br));
     }
     if (rl > 0) {
-        unsigned long ul = br();
-        memcpy(buf + len - rl, &ul, rl);
+        rand_type r = br();
+        memcpy(static_cast<char*>(buf) + len - rl, &r, rl);
     }
     return len;
 }
