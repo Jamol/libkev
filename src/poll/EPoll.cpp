@@ -70,12 +70,17 @@ EPoll::~EPoll()
 
 bool EPoll::init()
 {
+    if(INVALID_FD != epoll_fd_) {
+        return true;
+    }
     epoll_fd_ = epoll_create(MAX_EPOLL_FDS);
     if(INVALID_FD == epoll_fd_) {
         return false;
     }
     if (!notifier_->ready()) {
         if(!notifier_->init()) {
+            close(epoll_fd_);
+            epoll_fd_ = INVALID_FD;
             return false;
         }
         IOCallback cb ([this](KMEvent ev, void*, size_t) { notifier_->onEvent(ev); });

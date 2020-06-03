@@ -228,6 +228,7 @@ public:
     void loop(uint32_t max_wait_ms = -1);
     void stop();
     bool stopped() const { return stop_loop_; }
+    void reset() { stop_loop_ = false; }
 
     void appendPendingObject(PendingObject *obj);
     void removePendingObject(PendingObject *obj);

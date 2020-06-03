@@ -59,6 +59,9 @@ IocpPoll::~IocpPoll()
 
 bool IocpPoll::init()
 {
+    if (hCompPort_) {
+        return true;
+    }
     hCompPort_ = CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, 0, 1);
     if (!hCompPort_) {
         KM_ERRTRACE("IocpPoll::init, CreateIoCompletionPort failed, err=" << GetLastError());

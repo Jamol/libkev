@@ -73,12 +73,17 @@ KQueue::~KQueue()
 
 bool KQueue::init()
 {
+    if (INVALID_FD != kqueue_fd_) {
+        return true;
+    }
     kqueue_fd_ = ::kqueue();
     if(INVALID_FD == kqueue_fd_) {
         return false;
     }
     if (!notifier_->ready()) {
         if(!notifier_->init()) {
+            ::close(kqueue_fd_);
+            kqueue_fd_ = INVALID_FD;
             return false;
         }
         IOCallback cb ([this](KMEvent ev, void*, size_t) { notifier_->onEvent(ev); });
