@@ -252,7 +252,7 @@ public:
     }
     // TimerCallback will be reset when:
     // 1. timer is cancelled
-    // 2. timer is executed and TimerMode is ONE_SHOT
+    // 2. timer is executed and Timer::Mode is ONE_SHOT
     // 3. the TimerManager in EventLoop is destroyed and timer is still in queue
     bool schedule(uint32_t delay_ms, Mode mode, TimerCallback cb);
     
