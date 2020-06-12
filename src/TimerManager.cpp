@@ -91,6 +91,7 @@ TimerManager::~TimerManager()
                 list_remove_node(timer_node);
                 timer_node->cancelled_ = true;
                 // NOTE: the timer_node may be destroyed when cb_ is reset
+                auto cb = std::move(timer_node->cb_);
                 timer_node->cb_ = nullptr;
                 --timer_count_;
             }
