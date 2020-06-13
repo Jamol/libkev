@@ -38,6 +38,7 @@
 #include <string>
 #include <sstream>
 #include <memory>
+#include <chrono>
 #include <algorithm>
 
 struct addrinfo;
@@ -167,6 +168,7 @@ inline bool km_is_fatal_error(Result err)
     return err != Result::OK && err != Result::AGAIN;
 }
 
+std::string toString(const std::chrono::system_clock::time_point &time, bool utc);
 std::string getDateTimeString(bool utc);
 void setCurrentThreadName(const char *name);
 

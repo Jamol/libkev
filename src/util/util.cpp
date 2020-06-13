@@ -687,7 +687,7 @@ std::string getCurrentModulePath()
     return str_path;
 }
 
-std::string getDateTimeString(const system_clock::time_point &time, bool utc)
+std::string toString(const system_clock::time_point &time, bool utc)
 {
     auto msecs = duration_cast<milliseconds>
         (time.time_since_epoch()).count() % 1000;
@@ -712,7 +712,7 @@ std::string getDateTimeString(const system_clock::time_point &time, bool utc)
 std::string getDateTimeString(bool utc)
 {
     auto now = system_clock::now();
-    return getDateTimeString(now, utc);
+    return toString(now, utc);
 }
 
 #if defined(KUMA_OS_WIN)

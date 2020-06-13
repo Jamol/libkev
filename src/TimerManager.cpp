@@ -179,6 +179,7 @@ void TimerManager::cancelTimer(TimerNode *timer_node)
     }
     timer_node->cancelled_ = true;
     // NOTE: the timer_node may be destroyed when cb_ is reset
+    auto cb = std::move(timer_node->cb_);
     timer_node->cb_ = nullptr;
 }
 
@@ -445,6 +446,7 @@ int TimerManager::checkExpire(unsigned long* remain_ms)
                 // reset timer callback
                 reschedule_node_->cancelled_ = true;
                 // NOTE: the reschedule_node_ may be destroyed when cb_ is reset
+                auto cb = std::move(reschedule_node_->cb_);
                 reschedule_node_->cb_ = nullptr;
             }
             reschedule_node_ = nullptr;
