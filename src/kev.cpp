@@ -162,7 +162,7 @@ void EventLoop::wakeup()
 void EventLoop::cancel(Token *token)
 {
     if (token) {
-        pimpl_->removeTask(token->pimpl());
+        token->pimpl()->clearAllTasks();
     }
 }
 

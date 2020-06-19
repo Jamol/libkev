@@ -108,6 +108,7 @@ public:
     Timer::Impl     timer;
 };
 using DelayedTaskSlotPtr = std::shared_ptr<DelayedTaskSlot>;
+using DelayedTaskQueue = std::list<DelayedTaskSlotPtr>;
 
 enum class LoopActivity {
     EXIT,
@@ -155,9 +156,7 @@ public:
     bool inSameThread() const { return std::this_thread::get_id() == thread_id_; }
     std::thread::id threadId() const { return thread_id_; }
     Result appendTask(Task task, EventLoopToken *token, const char *debugStr);
-    Result removeTask(EventLoopToken *token);
     Result appendDelayedTask(uint32_t delay_ms, Task task, EventLoopToken *token, const char *debugStr);
-    Result removeDelayedTask(EventLoopToken *token);
 
     template<typename F>
     auto invoke(F &&f)
@@ -271,17 +270,23 @@ public:
     void clearInactiveTask();
     void appendDelayedTaskNode(DelayedTaskSlotPtr &node);
     void clearInactiveDelayedTask();
+    void clearAllTasks();
     
     bool expired();
     void reset();
     
 protected:
+    using LockType = std::mutex;
+    using LockGuard = std::lock_guard<LockType>;
+    using LockTypeR = std::recursive_mutex;
+    using LockGuardR = std::lock_guard<LockTypeR>;
     friend class EventLoop::Impl;
     EventLoopWeakPtr loop_;
     
-    // task_nodes_ and dtask_nodes_ are protected by EventLoop task_mutex_
-    std::list<TaskSlotPtr> task_nodes_;
-    std::list<DelayedTaskSlotPtr> dtask_nodes_;
+    TaskQueue task_nodes_;
+    DelayedTaskQueue dtask_nodes_;
+    LockType mutex_;
+    LockTypeR clearMutex_;
     
     bool observed = false;
     ObserverToken obs_token_;
