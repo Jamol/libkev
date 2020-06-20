@@ -125,11 +125,12 @@ public:
         template<class... Args>
         DLNode(Args&&... args) : element_{ std::forward<Args>(args)... } {}
         E& element() { return element_; }
-        bool isLinked() const { return prev_ || next_; }
+        bool isLinked() const { return linked_; }
         
     private:
         friend class DLQueue;
         E element_;
+        bool linked_{false};
         Ptr prev_;
         Ptr next_;
     };
@@ -139,6 +140,7 @@ public:
     ~DLQueue()
     {
         while(head_) {
+            head_->linked_ = false;
             head_ = head_->next_;
         }
     }
@@ -159,6 +161,7 @@ public:
             node->prev_ = tail_;
         }
         tail_ = node;
+        node->linked_ = true;
         ++count_;
         return node;
     }
@@ -190,6 +193,7 @@ public:
     void pop_front()
     {
         if(!empty()) {
+            head_->linked_ = false;
             if (head_->next_) {
                 head_ = head_->next_;
                 head_->prev_->next_.reset();
@@ -204,7 +208,7 @@ public:
     
     bool remove(const NodePtr &node)
     {// make sure the node is in this queue
-        if (!node || (!node->prev_ && !node->next_)) {
+        if (!node || (!node->prev_ && !node->next_ && node != head_)) {
             return false;
         }
         if (node->next_) {
@@ -219,6 +223,7 @@ public:
         }
         node->next_.reset();
         node->prev_.reset();
+        node->linked_ = false;
         --count_;
         return true;
     }

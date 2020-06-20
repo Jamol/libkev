@@ -269,20 +269,20 @@ Result EventLoop::Impl::appendDelayedTask(uint32_t delay_ms, Task task, EventLoo
     if (token && token->eventLoop().get() != this) {
         return Result::INVALID_PARAM;
     }
-    std::string dstr{debugStr ? debugStr : ""};
-    auto ptr = std::make_shared<DelayedTaskSlot>(this, std::move(task), std::move(dstr));
-    LockGuard g(task_mutex_);
     if (stop_loop_) {
         return Result::INVALID_STATE;
     }
+    std::string dstr{debugStr ? debugStr : ""};
+    auto ptr = std::make_shared<DelayedTaskSlot>(this, std::move(task), std::move(dstr));
     if (token) {
         token->appendDelayedTaskNode(ptr);
     }
     // NOTE: ptr is stored in TimerCallback, so no queue is needed for DelayedTaskSlot.
     // ptr will be released after timer cancelled or executed, or TimerManager destructed
     ptr->timer.schedule(delay_ms, Timer::Mode::ONE_SHOT, [ptr=std::move(ptr)] () mutable {
-        (*ptr)();
-        ptr.reset();
+        // this closure will be released when user reset the token 
+        auto p = std::move(ptr);
+        (*p)();
     });
     return Result::OK;
 }
@@ -413,7 +413,6 @@ void EventLoop::Token::Impl::clearAllTasks()
 {
     TaskQueue tq;
     DelayedTaskQueue dtq;
-    LockGuardR cg(clearMutex_);
     {
         LockGuard g(mutex_);
         task_nodes_.swap(tq);
