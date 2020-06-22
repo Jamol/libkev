@@ -1,4 +1,4 @@
-/* Copyright (c) 2014, Fengping Bao <jamol@live.com>
+/* Copyright (c) 2014-2020, Fengping Bao <jamol@live.com>
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -36,7 +36,7 @@ KEV_NS_END
 
 //////////////////////////////////////////////////////////////////////////
 // Timer::Impl
-Timer::Impl::Impl(TimerManagerPtr mgr)
+Timer::Impl::Impl(TimerManager::Ptr mgr)
 : timer_mgr_(mgr)
 {
     
@@ -49,7 +49,7 @@ Timer::Impl::~Impl()
 
 bool Timer::Impl::schedule(uint32_t delay_ms, Mode mode, TimerCallback cb)
 {
-    TimerManagerPtr mgr = timer_mgr_.lock();
+    auto mgr = timer_mgr_.lock();
     if(mgr) {
         return mgr->scheduleTimer(&timer_node_, delay_ms, mode, std::move(cb));
     }
@@ -58,7 +58,7 @@ bool Timer::Impl::schedule(uint32_t delay_ms, Mode mode, TimerCallback cb)
 
 void Timer::Impl::cancel()
 {
-    TimerManagerPtr mgr = timer_mgr_.lock();
+    auto mgr = timer_mgr_.lock();
     if(mgr) {
         mgr->cancelTimer(&timer_node_);
     }

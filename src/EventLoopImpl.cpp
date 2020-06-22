@@ -1,4 +1,4 @@
-/* Copyright (c) 2014, Fengping Bao <jamol@live.com>
+/* Copyright (c) 2014-2020, Fengping Bao <jamol@live.com>
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -375,11 +375,11 @@ EventLoopPtr EventLoop::Token::Impl::eventLoop()
 void EventLoop::Token::Impl::appendTaskNode(TaskSlotPtr &node)
 {
     LockGuard g(mutex_);
-    clearInactiveTask();
+    clearInactiveTasks();
     task_nodes_.emplace_back(node);
 }
 
-void EventLoop::Token::Impl::clearInactiveTask()
+void EventLoop::Token::Impl::clearInactiveTasks()
 {
     for (auto it = task_nodes_.begin(); it != task_nodes_.end(); ) {
         if (!(*it)->isActive()) {
@@ -393,11 +393,11 @@ void EventLoop::Token::Impl::clearInactiveTask()
 void EventLoop::Token::Impl::appendDelayedTaskNode(DelayedTaskSlotPtr &node)
 {
     LockGuard g(mutex_);
-    clearInactiveDelayedTask();
+    clearInactiveDelayedTasks();
     dtask_nodes_.emplace_back(node);
 }
 
-void EventLoop::Token::Impl::clearInactiveDelayedTask()
+void EventLoop::Token::Impl::clearInactiveDelayedTasks()
 {
     for (auto it = dtask_nodes_.begin(); it != dtask_nodes_.end(); ++it) {
         if (!(*it)->isActive()) {

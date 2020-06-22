@@ -1,4 +1,4 @@
-/* Copyright (c) 2014, Fengping Bao <jamol@live.com>
+/* Copyright (c) 2014-2020, Fengping Bao <jamol@live.com>
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -35,6 +35,7 @@
 #include <thread>
 #include <list>
 #include <atomic>
+#include <mutex>
 
 KEV_NS_BEGIN
 
@@ -52,6 +53,7 @@ public:
         if (task) {
             task_running = true;
             task();
+            auto t = std::move(task); // save closure state
             task = nullptr;
             task_running = false;
         }
@@ -144,7 +146,7 @@ public:
     Result registerFd(SOCKET_FD fd, uint32_t events, IOCallback cb);
     Result updateFd(SOCKET_FD fd, uint32_t events);
     Result unregisterFd(SOCKET_FD fd, bool close_fd);
-    TimerManagerPtr getTimerMgr() { return timer_mgr_; }
+    TimerManager::Ptr getTimerMgr() { return timer_mgr_; }
     
     PollType getPollType() const;
     bool isPollLT() const; // level trigger
@@ -250,7 +252,7 @@ protected:
     ObserverQueue       obs_queue_;
     LockType            obs_mutex_;
     
-    TimerManagerPtr     timer_mgr_;
+    TimerManager::Ptr   timer_mgr_;
 
     PendingObject*      pending_objects_ = nullptr;
 };
@@ -267,9 +269,9 @@ public:
     EventLoopPtr eventLoop();
     
     void appendTaskNode(TaskSlotPtr &node);
-    void clearInactiveTask();
+    void clearInactiveTasks();
     void appendDelayedTaskNode(DelayedTaskSlotPtr &node);
-    void clearInactiveDelayedTask();
+    void clearInactiveDelayedTasks();
     void clearAllTasks();
     
     bool expired();

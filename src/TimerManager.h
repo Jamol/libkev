@@ -1,4 +1,4 @@
-/* Copyright (c) 2014, Fengping Bao <jamol@live.com>
+/* Copyright (c) 2014-2020, Fengping Bao <jamol@live.com>
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -43,6 +43,7 @@ KEV_NS_BEGIN
 class TimerManager
 {
 public:
+    using Ptr = std::shared_ptr<TimerManager>;
     using TimerCallback = std::function<void(void)>;
     class TimerNode;
 
@@ -81,7 +82,7 @@ public:
         // or when TimerManager destructed
         // NOTE: the TimerNode may be destroyed when TimerCallback is reset,
         // for example, the DealyedTaskSlotPtr is stored in TimerCallback and
-        // will be destroyed when TimerCallback is reset 
+        // will be destroyed when TimerCallback is reset
         TimerCallback       cb_;
         
     protected:
@@ -118,12 +119,9 @@ private:
     int find_first_set_in_bitmap(int idx);
 
 private:
-    typedef std::recursive_mutex KM_Mutex;
-    typedef std::lock_guard<KM_Mutex> KM_Lock_Guard;
-    
     EventLoop::Impl* loop_;
     std::mutex mutex_;
-    KM_Mutex running_mutex_;
+    std::recursive_mutex running_mutex_;
     TimerNode*  running_node_{ nullptr };
     TimerNode*  reschedule_node_{ nullptr };
     unsigned long last_remain_ms_ = -1;
@@ -132,14 +130,13 @@ private:
     uint32_t tv0_bitmap_[8]; // 1 -- have timer in this slot
     TimerNode tv_[TV_COUNT][TIMER_VECTOR_SIZE]; // timer vectors
 };
-typedef std::shared_ptr<TimerManager> TimerManagerPtr;
 
 class Timer::Impl
 {
 public:
     using TimerCallback = Timer::TimerCallback;
     
-    Impl(TimerManagerPtr mgr);
+    Impl(TimerManager::Ptr mgr);
     ~Impl();
     
     template<typename F, std::enable_if_t<!std::is_copy_constructible<F>{}, int> = 0>
