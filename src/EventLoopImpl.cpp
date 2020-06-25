@@ -254,8 +254,9 @@ Result EventLoop::Impl::appendTask(Task task, EventLoopToken *token, const char 
     std::string dstr{debugStr ? debugStr : ""};
     TaskSlotPtr ptr;
     if (token) {
-        ptr = std::make_shared<TokenTaskSlot>(std::move(task), std::move(dstr));
-        token->appendTaskNode(ptr);
+        auto p = std::make_shared<TokenTaskSlot>(std::move(task), std::move(dstr));
+        token->appendTaskNode(p);
+        ptr = std::move(p);
     } else {
         ptr = std::make_shared<TaskSlot>(std::move(task), std::move(dstr));
     }
@@ -372,18 +373,18 @@ EventLoopPtr EventLoop::Token::Impl::eventLoop()
     return loop_.lock();
 }
 
-void EventLoop::Token::Impl::appendTaskNode(TaskSlotPtr &node)
+void EventLoop::Token::Impl::appendTaskNode(TokenTaskSlotPtr &node)
 {
     LockGuard g(mutex_);
     clearInactiveTasks();
-    task_nodes_.emplace_back(node);
+    ttask_nodes_.emplace_back(node);
 }
 
 void EventLoop::Token::Impl::clearInactiveTasks()
 {
-    for (auto it = task_nodes_.begin(); it != task_nodes_.end(); ) {
+    for (auto it = ttask_nodes_.begin(); it != ttask_nodes_.end(); ) {
         if (!(*it)->isActive()) {
-            it = task_nodes_.erase(it);
+            it = ttask_nodes_.erase(it);
         } else {
             break;
         }
@@ -411,26 +412,37 @@ void EventLoop::Token::Impl::clearInactiveDelayedTasks()
 
 void EventLoop::Token::Impl::clearAllTasks()
 {
-    TaskQueue tq;
-    DelayedTaskQueue dtq;
-    {
-        LockGuard g(mutex_);
-        task_nodes_.swap(tq);
-        dtask_nodes_.swap(dtq);
-    }
     auto loop = loop_.lock();
-    if (loop) {
-        for (auto &ts : tq) {
-            if (ts->isActive()) {
-                if (!loop->inSameThread() || !ts->isRunning()) {
-                    ts->cancel();
-                }
-            }
+
+    std::unique_lock<std::mutex> ul(mutex_);
+    pending_ttask_nodes_.splice(pending_ttask_nodes_.end(), std::move(ttask_nodes_));
+    pending_dtask_nodes_.splice(pending_dtask_nodes_.end(), std::move(dtask_nodes_));
+
+    while(!pending_ttask_nodes_.empty()) {
+        bool needPop = true;
+        auto ts = pending_ttask_nodes_.front();
+        if (ts->isActive()) {
+            ul.unlock();
+            ts->cancel(loop && loop->inSameThread());
+            ul.lock();
+            needPop = !pending_ttask_nodes_.empty() && ts == pending_ttask_nodes_.front();
+        }
+        if (needPop) {
+            pending_ttask_nodes_.pop_front();
         }
     }
-    for (auto &ds : dtq) {
+
+    while(!pending_dtask_nodes_.empty()) {
+        bool needPop = true;
+        auto ds = pending_dtask_nodes_.front();
         if (ds->isActive()) {
+            ul.unlock();
             ds->cancel();
+            ul.lock();
+            needPop = !pending_dtask_nodes_.empty() && ds == pending_dtask_nodes_.front();
+        }
+        if (needPop) {
+            pending_dtask_nodes_.pop_front();
         }
     }
 }
@@ -442,7 +454,6 @@ bool EventLoop::Token::Impl::expired()
 
 void EventLoop::Token::Impl::reset()
 {
-    clearAllTasks();
     auto loop = loop_.lock();
     if (loop) {
         if (!obs_token_.expired()) {
@@ -450,6 +461,7 @@ void EventLoop::Token::Impl::reset()
             obs_token_.reset();
         }
     }
+    clearAllTasks();
 }
 
 KEV_NS_END

@@ -25,7 +25,8 @@
 #include "kevdefs.h"
 #include "kmtypes.h"
 
-#include <stdint.h>
+#include <functional>
+#include <memory>
 
 KEV_NS_BEGIN
 
@@ -45,6 +46,9 @@ public:
         Token& operator=(Token &&other);
         Token& operator=(const Token &other) = delete;
         
+        /* clear all tasks that are scheduled to this token. you cannot cancel the task that is in running,
+         * but will wait untill the task completion
+         */
         void reset();
         
         class Impl;
@@ -218,10 +222,11 @@ public:
     void reset();
     
     class Impl;
-    Impl* pimpl();
+    using ImplPtr = std::shared_ptr<Impl>;
+    ImplPtr pimpl();
 
 private:
-    Impl* pimpl_;
+    ImplPtr pimpl_;
 };
 
 class Timer

@@ -139,7 +139,7 @@ size_t generateRandomBytes(void *buf, size_t len);
 
 int km_resolve_2_ip(const char *host_name, char *ip_buf, size_t ip_buf_len, int ipv = 0);
 int km_parse_address(const char *addr,
-                     char* proto, 
+                     char *proto, 
                      size_t proto_len,
                      char *host, 
                      size_t host_len, 

@@ -41,6 +41,8 @@ KEV_NS_BEGIN
 
 class IOPoll;
 using EventLoopToken = EventLoop::Token::Impl;
+using EventLoopPtr = EventLoop::ImplPtr;
+using EventLoopWeakPtr = std::weak_ptr<EventLoop::Impl>;
 
 class TaskSlot
 {
@@ -51,29 +53,24 @@ public:
     virtual void operator() ()
     {
         if (task) {
-            task_running = true;
             task();
-            auto t = std::move(task); // save closure state
-            task = nullptr;
-            task_running = false;
+            clearTask();
         }
     }
-    virtual void cancel()
+    void clearTask()
     {
+        auto t = std::move(task); // save closure state
         task = nullptr;
     }
     bool isActive() const
     {
         return bool(task);
     }
-    bool isRunning() const
-    {
-        return task_running;
-    }
     EventLoop::Task task;
-    bool            task_running = false;
     std::string     debugStr;
 };
+using TaskSlotPtr = std::shared_ptr<TaskSlot>;
+using TaskQueue = std::list<TaskSlotPtr>;
 
 class TokenTaskSlot : public TaskSlot
 {
@@ -82,19 +79,40 @@ public:
     : TaskSlot(std::move(t), std::move(debugStr)) {}
     void operator() () override
     {
+        auto expected = State::ACTIVE;
         std::lock_guard<std::mutex> g(mlock);
-        TaskSlot::operator()();
+        if (state_.compare_exchange_strong(expected, State::RUNNING)) {
+            TaskSlot::operator()();
+            state_.exchange(State::INACTIVE);
+        }
     }
-    void cancel() override
+    void cancel(bool inLoopThread)
     {
-        std::lock_guard<std::mutex> g(mlock);
-        TaskSlot::cancel();
+        auto expected = State::ACTIVE;
+        if (state_.compare_exchange_strong(expected, State::INACTIVE)) {
+            clearTask();
+        } else if (expected == State::RUNNING) {
+            if (!inLoopThread) {
+                // wait for running complete
+                mlock.lock();
+                mlock.unlock();
+                clearTask();
+            }
+        }
     }
-    std::mutex      mlock;
-};
 
-using TaskSlotPtr = std::shared_ptr<TaskSlot>;
-using TaskQueue = std::list<TaskSlotPtr>;
+    enum class State
+    {
+        ACTIVE,
+        RUNNING,
+        INACTIVE
+    };
+    
+    std::atomic<State>  state_{ State::ACTIVE };
+    mutable std::mutex  mlock;
+};
+using TokenTaskSlotPtr = std::shared_ptr<TokenTaskSlot>;
+using TokenTaskQueue = std::list<TokenTaskSlotPtr>;
 
 class DelayedTaskSlot : public TaskSlot
 {
@@ -103,7 +121,7 @@ public:
     void cancel()
     {
         timer.cancel();
-        TaskSlot::cancel();
+        clearTask();
     }
 
 public:
@@ -256,8 +274,6 @@ protected:
 
     PendingObject*      pending_objects_ = nullptr;
 };
-using EventLoopPtr = std::shared_ptr<EventLoop::Impl>;
-using EventLoopWeakPtr = std::weak_ptr<EventLoop::Impl>;
 
 class EventLoop::Token::Impl
 {
@@ -268,7 +284,7 @@ public:
     void eventLoop(const EventLoopPtr &loop);
     EventLoopPtr eventLoop();
     
-    void appendTaskNode(TaskSlotPtr &node);
+    void appendTaskNode(TokenTaskSlotPtr &node);
     void clearInactiveTasks();
     void appendDelayedTaskNode(DelayedTaskSlotPtr &node);
     void clearInactiveDelayedTasks();
@@ -283,9 +299,13 @@ protected:
     friend class EventLoop::Impl;
     EventLoopWeakPtr loop_;
     
-    TaskQueue task_nodes_;
+    TokenTaskQueue ttask_nodes_;
     DelayedTaskQueue dtask_nodes_;
     LockType mutex_;
+    // when reset() is called from multiple different threads, 
+    // all of them need wait for completion of all pending tasks
+    TokenTaskQueue pending_ttask_nodes_;
+    DelayedTaskQueue pending_dtask_nodes_;
     
     bool observed = false;
     ObserverToken obs_token_;

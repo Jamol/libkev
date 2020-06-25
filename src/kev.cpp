@@ -22,15 +22,13 @@
 #include "kev.h"
 #include "EventLoopImpl.h"
 #include "util/kmtrace.h"
-#include "util/ImplHelper.h"
 
 KEV_NS_BEGIN
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
 // class EventLoop
-using EventLoopHelper = ImplHelper<EventLoop::Impl>;
 EventLoop::EventLoop(PollType poll_type)
-: pimpl_(EventLoopHelper::create(std::move(poll_type)))
+: pimpl_(std::make_shared<Impl>(poll_type))
 {
     
 }
@@ -43,15 +41,12 @@ EventLoop::EventLoop(EventLoop &&other)
 
 EventLoop::~EventLoop()
 {
-    EventLoopHelper::destroy(pimpl_);
+    
 }
 
 EventLoop& EventLoop::operator=(EventLoop &&other)
 {
     if (this != &other) {
-        if (pimpl_) {
-            EventLoopHelper::destroy(pimpl_);
-        }
         pimpl_ = std::exchange(other.pimpl_, nullptr);
     }
     
@@ -69,7 +64,7 @@ EventLoop::Token EventLoop::createToken()
     if (!t.pimpl_) { // lazy initialize token pimpl
         t.pimpl_ = new Token::Impl();
     }
-    t.pimpl()->eventLoop(EventLoopHelper::implPtr(pimpl()));
+    t.pimpl()->eventLoop(pimpl());
     return t;
 }
 
@@ -123,7 +118,7 @@ void EventLoop::reset()
     pimpl_->reset();
 }
 
-EventLoop::Impl* EventLoop::pimpl()
+EventLoop::ImplPtr EventLoop::pimpl()
 {
     return pimpl_;
 }
