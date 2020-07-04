@@ -282,8 +282,7 @@ Result EventLoop::Impl::appendDelayedTask(uint32_t delay_ms, Task task, EventLoo
     // ptr will be released after timer cancelled or executed, or TimerManager destructed
     ptr->timer.schedule(delay_ms, Timer::Mode::ONE_SHOT, [ptr=std::move(ptr)] () mutable {
         // this closure will be released when user reset the token 
-        auto p = std::move(ptr);
-        (*p)();
+        (*std::exchange(ptr, nullptr))();
     });
     return Result::OK;
 }

@@ -59,8 +59,7 @@ public:
     }
     void clearTask()
     {
-        auto t = std::move(task); // save closure state
-        task = nullptr;
+        std::exchange(task, nullptr);
     }
     bool isActive() const
     {

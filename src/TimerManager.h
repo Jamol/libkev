@@ -73,6 +73,12 @@ public:
             prev_ = nullptr;
             next_ = nullptr;
         }
+        void cancel()
+        {
+            cancelled_ = true;
+            // NOTE: this TimerNode object may be destroyed when cb_ is reset
+            std::exchange(cb_, nullptr);
+        }
         
         std::atomic<bool>   cancelled_{ true };
         bool                repeating_{ false };
