@@ -27,6 +27,7 @@
 
 #include <functional>
 #include <memory>
+#include <string>
 
 KEV_NS_BEGIN
 
@@ -274,8 +275,7 @@ private:
 };
 
 
-// msg is null-terminated and msg_len doesn't include '\0'
-using LogCallback = void(*)(int level, const char* msg, size_t msg_len);
+using LogCallback = std::function<void(int level, std::string &&msg)>;
 void setLogCallback(LogCallback cb);
 
 KEV_NS_END

@@ -123,35 +123,44 @@ void tracePrint(int level, const char* szMessage, ...)
 #endif
 }
 
+void printTrace(int level, const std::string &msg)
+{
+    if (level > TRACE_LEVEL_MAX) {
+        level = TRACE_LEVEL_MAX;
+    } else if (level < TRACE_LEVEL_ERROR) {
+        level = TRACE_LEVEL_ERROR;
+    }
+#if defined(KUMA_OS_ANDROID)
+    int android_level = kAndroidLogLevels[level];
+    __android_log_print(android_level, KEV_TRACE_TAG, "%s", msg.c_str());
+#else
+    std::stringstream ss;
+    ss << kTraceStrings[level];
+    ss << " [" << getCurrentThreadId() << "] " << msg << '\n';
+# if defined(KUMA_OS_WIN)
+    OutputDebugStringA(ss.str().c_str());
+# else
+    printf("%s %s", getDateTimeString(false).c_str(), ss.str().c_str());
+# endif
+#endif
+}
+
 void traceWrite(int level, const std::string &msg)
 {
     if (s_traceFunc) {
-        s_traceFunc(level, msg.c_str(), msg.size());
+        s_traceFunc(level, std::string(msg));
     } else {
-        if (level > TRACE_LEVEL_MAX) {
-            level = TRACE_LEVEL_MAX;
-        } else if (level < TRACE_LEVEL_ERROR) {
-            level = TRACE_LEVEL_ERROR;
-        }
-#if defined(KUMA_OS_ANDROID)
-        int android_level = kAndroidLogLevels[level];
-        __android_log_print(android_level, KEV_TRACE_TAG, "%s", msg.c_str());
-#else
-        std::stringstream ss;
-        ss << kTraceStrings[level];
-        ss << " [" << getCurrentThreadId() << "] " << msg << '\n';
-# if defined(KUMA_OS_WIN)
-        OutputDebugStringA(ss.str().c_str());
-# else
-        printf("%s %s", getDateTimeString(false).c_str(), ss.str().c_str());
-# endif
-#endif
+        printTrace(level, msg);
     }
 }
 
 void traceWrite(int level, std::string &&msg)
 {
-    traceWrite(level, msg);
+    if (s_traceFunc) {
+        s_traceFunc(level, std::move(msg));
+    } else {
+        printTrace(level, msg);
+    }
 }
 
 void setTraceFunc(TraceFunc func)

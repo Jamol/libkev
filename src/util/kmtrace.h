@@ -11,6 +11,7 @@
 #include "../../include/kmconf.h"
 
 #include <sstream>
+#include <functional>
 #include <assert.h>
 
 namespace kev {
@@ -60,8 +61,7 @@ const int TRACE_LEVEL_MAX = TRACE_LEVEL_VERBOS;
 void traceWrite(int level, const std::string &msg);
 void traceWrite(int level, std::string &&msg);
 
-// msg is null-terminated and msg_len doesn't include '\0'
-using TraceFunc = void(*)(int level, const char* msg, size_t msg_len);
+using TraceFunc = std::function<void(int level, std::string &&msg)>;
 void setTraceFunc(TraceFunc func);
 void setTraceLevel(int level);
 int getTraceLevel();

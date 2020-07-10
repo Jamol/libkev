@@ -172,7 +172,7 @@ public:
             return std::string();
         }
 
-        sockaddr_storage ss_addr{ 0 };
+        sockaddr_storage ss_addr;
         socklen_t addr_len = sizeof(ss_addr);
         if (::getsockname(fd, (sockaddr*)&ss_addr, &addr_len) != 0) {
             return std::string();
@@ -190,7 +190,7 @@ public:
             return std::string();
         }
 
-        sockaddr_storage ss_addr{ 0 };
+        sockaddr_storage ss_addr;
         socklen_t addr_len = sizeof(ss_addr);
         if (::getpeername(fd, (sockaddr*)&ss_addr, &addr_len) != 0) {
             return std::string();
