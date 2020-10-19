@@ -238,7 +238,7 @@ void EventLoop::Impl::loop(uint32_t max_wait_ms)
 
 void EventLoop::Impl::stop()
 {
-    KM_INFOXTRACE("stop");
+    //KM_INFOXTRACE("stop");
     stop_loop_ = true;
     wakeup();
 }
