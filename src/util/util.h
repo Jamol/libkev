@@ -43,6 +43,7 @@
 
 struct addrinfo;
 struct sockaddr;
+struct sockaddr_storage;
 
 KEV_NS_BEGIN
 
@@ -115,6 +116,7 @@ std::string& trim_left(std::string &str, char c);
 std::string& trim_right(std::string &str, char c);
 
 std::string getExecutablePath();
+std::string getModuleFullPath(const void* addr_in_module);
 std::string getCurrentModulePath();
 
 template<typename LAMBDA> // (std::string &token) -> bool

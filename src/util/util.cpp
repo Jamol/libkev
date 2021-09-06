@@ -668,20 +668,63 @@ std::string getExecutablePath()
     return str_path;
 }
 
-std::string getCurrentModulePath()
+std::string getModuleFullPath(const void* addr_in_module)
 {
+    if (!addr_in_module) {
+        return "";
+    }
     std::string str_path;
 #ifdef KUMA_OS_WIN
-    char c_path[MAX_PATH] = { 0 };
-    HMODULE hModule = NULL;
-    GetModuleHandleEx(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT, reinterpret_cast<LPCTSTR>(getCurrentModulePath), &hModule);
-    GetModuleFileNameA(hModule, c_path, sizeof(c_path));
-    str_path = c_path;
+    HMODULE hmodule = 0;
+    auto flags = GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT;
+    auto ret = ::GetModuleHandleEx(flags, (LPCTSTR)addr_in_module, &hmodule);
+    if (!ret) {
+        return "";
+    }
+    char file_name[2048] = { 0 };
+    auto count = ::GetModuleFileNameA(hmodule, file_name, ARRAYSIZE(file_name));
+    if (count == 0) {
+        return "";
+    }
+    str_path = file_name;
+#elif defined(KUMA_OS_MAC) || defined(KUMA_OS_LINUX)
+    Dl_info dl_info;
+    dladdr((void*)addr_in_module, &dl_info);
+
+    str_path = dl_info.dli_fname;
 #else
-    Dl_info dlInfo;
-    dladdr((void*)getCurrentModulePath, &dlInfo);
-    str_path = dlInfo.dli_fname;
+    return "";
 #endif
+
+#ifdef KUMA_OS_MAC
+    auto pos1 = str_path.rfind(PATH_SEPARATOR);
+    auto pos2 = pos1;
+    int count = 4;
+#ifdef KUMA_OS_IOS
+    count = 2;
+#endif
+    while (pos2 != std::string::npos && pos2 > 0 && --count > 0) {
+        pos1 = pos2;
+        pos2 = str_path.rfind(PATH_SEPARATOR, pos1 - 1);
+    }
+    if (pos2 != std::string::npos) {
+        auto name = str_path.substr(pos2 + 1, pos1 - pos2 - 1);
+        auto pos3 = name.rfind('.');
+        if (pos3 != std::string::npos) {
+            auto ext = name.substr(pos3 + 1);
+            if (ext == "framework" || ext == "bundle" || ext == "app") {
+                str_path.erase(pos1);
+            }
+        }
+    }
+#endif
+
+    return str_path;
+}
+
+std::string getCurrentModulePath()
+{
+    std::string str_path = getModuleFullPath((void*)getCurrentModulePath);
     auto pos = str_path.rfind(PATH_SEPARATOR, str_path.size());
     str_path.resize(pos);
     return str_path;
