@@ -3,7 +3,6 @@
 from __future__ import print_function
 import sys
 import os
-import shutil
 
 def get_sdkversion():
     output = os.popen('xcrun -sdk iphoneos --show-sdk-version')

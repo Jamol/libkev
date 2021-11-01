@@ -3,9 +3,6 @@
 from __future__ import print_function
 import sys
 import os
-import shutil
-import subprocess
-
 
 def run_and_check_error(command):
     if os.system(command) != 0:
