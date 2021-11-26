@@ -73,11 +73,11 @@ public:
             prev_ = nullptr;
             next_ = nullptr;
         }
-        void cancel()
+        auto cancel()
         {
             cancelled_ = true;
             // NOTE: this TimerNode object may be destroyed when cb_ is reset
-            std::exchange(cb_, nullptr);
+            return std::exchange(cb_, nullptr);
         }
         
         std::atomic<bool>   cancelled_{ true };
@@ -85,10 +85,12 @@ public:
         uint32_t            delay_ms_{ 0 };
         TICK_COUNT_TYPE     start_tick_{ 0 };
         // NOTE: timer callback will be reset after timer cancelled or executed, 
-        // or when TimerManager destructed
+        //       or when TimerManager destructed
         // NOTE: the TimerNode may be destroyed when TimerCallback is reset,
-        // for example, the DealyedTaskSlotPtr is stored in TimerCallback and
-        // will be destroyed when TimerCallback is reset
+        //       for example, the DealyedTaskSlotPtr is stored in TimerCallback
+        //       and will be destroyed when TimerCallback is reset
+        // NOTE: must not destruct the cb_ under lock of TimerManager::mutex_,
+        //       since its destruction may result to another timer to be cancelled
         TimerCallback       cb_;
         
     protected:
@@ -127,9 +129,9 @@ private:
 private:
     EventLoop::Impl* loop_;
     std::mutex mutex_;
-    std::recursive_mutex running_mutex_;
-    TimerNode*  running_node_{ nullptr };
-    TimerNode*  reschedule_node_{ nullptr };
+    std::mutex running_mutex_;
+    TimerNode* running_node_{ nullptr };
+    TimerNode* reschedule_node_{ nullptr };
     unsigned long last_remain_ms_ = -1;
     TICK_COUNT_TYPE last_tick_{ 0 };
     uint32_t timer_count_{ 0 };

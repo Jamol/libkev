@@ -109,6 +109,12 @@ if (CMAKE_SYSTEM_NAME MATCHES "Darwin")
     endif ()
 endif ()
 
+
+IF (ENABLE_ASAN)
+    add_compile_options(-fsanitize=address,undefined -fsanitize-recover=all -fno-omit-frame-pointer -fno-optimize-sibling-calls -fno-var-tracking -fno-stack-protector -O1 -g1)
+    message("Address Sanitizer enabled")
+ENDIF()
+
 add_library(kev STATIC ${SOURCE_FILES})
 
 if (CMAKE_SYSTEM_NAME MATCHES "Windows")
@@ -132,13 +138,14 @@ elseif (CMAKE_SYSTEM_NAME MATCHES "Darwin")
         set(LIBRARY_OUTPUT_PATH "${PROJ_ROOT_DIR}/lib/mac/${CMAKE_BUILD_TYPE}")
     endif ()
 elseif (CMAKE_SYSTEM_NAME MATCHES "Linux")
-    if (CMAKE_SYSTEM_PROCESS STREQUAL "")
+    if (NOT DEFINED CMAKE_SYSTEM_PROCESS OR CMAKE_SYSTEM_PROCESS STREQUAL "")
         set(CMAKE_SYSTEM_PROCESS ${CMAKE_HOST_SYSTEM_PROCESSOR})
     endif ()
     if (CMAKE_SYSTEM_PROCESS STREQUAL "aarch64" )
         set(CMAKE_SYSTEM_PROCESS "arm64")
     endif ()
-
+    
+    message("CMAKE_SYSTEM_PROCESS=${CMAKE_SYSTEM_PROCESS}")
     if (CMAKE_SYSTEM_PROCESS STREQUAL "arm")
         set(LIBRARY_OUTPUT_PATH "${PROJ_ROOT_DIR}/lib/linux/arm/${CMAKE_BUILD_TYPE}")
     elseif (CMAKE_SYSTEM_PROCESS STREQUAL "arm64")
