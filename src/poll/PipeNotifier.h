@@ -39,12 +39,12 @@ public:
     }
     bool init() override {
         cleanup();
-        if(pipe(fds_) != 0) {
+        if(::pipe(fds_) != 0) {
             cleanup();
             return false;
         } else {
-            fcntl(fds_[READ_FD], F_SETFL, O_RDONLY | O_NONBLOCK);
-            fcntl(fds_[WRITE_FD], F_SETFL, O_WRONLY | O_NONBLOCK);
+            ::fcntl(fds_[READ_FD], F_SETFL, O_RDONLY | O_NONBLOCK);
+            ::fcntl(fds_[WRITE_FD], F_SETFL, O_WRONLY | O_NONBLOCK);
             return true;
         }
     }
@@ -56,7 +56,7 @@ public:
             ssize_t ret = 0;
             do {
                 char c = 1;
-                ret = write(fds_[WRITE_FD], &c, sizeof(c));
+                ret = ::write(fds_[WRITE_FD], &c, sizeof(c));
             } while(ret < 0 && errno == EINTR);
         }
     }

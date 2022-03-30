@@ -65,7 +65,7 @@ public:
         if(km_set_sock_addr("127.0.0.1", port, &hints, (struct sockaddr*)&ss_addr, sizeof(ss_addr)) != 0) {
             return false;
         }
-        if (::listen(lfd, 16) != 0) {
+        if (::listen(lfd, 1) != 0) {
             return false;
         }
 

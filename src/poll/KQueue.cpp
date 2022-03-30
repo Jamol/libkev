@@ -51,7 +51,7 @@ public:
     
 private:
     int             kqueue_fd_ { -1 };
-    NotifierPtr     notifier_ { Notifier::createNotifier() };
+    NotifierPtr     notifier_;
     
     // on ET mode (EV_CLEAR is set), it seems EVFILT_READ won't be triggered
     // if EVFILT_READ is set after data arrived
@@ -80,7 +80,16 @@ bool KQueue::init()
     if(INVALID_FD == kqueue_fd_) {
         return false;
     }
-    if (!notifier_->ready()) {
+#ifdef EVFILT_USER
+    struct kevent ev;
+    EV_SET(&ev, 0, EVFILT_USER, EV_ADD|EV_CLEAR, 0, 0, 0);
+    if (::kevent(kqueue_fd_, &ev, 1, 0, 0, 0) != -1) {
+        notifier_.reset();
+    } else {
+        notifier_ = Notifier::createNotifier();
+    }
+#endif
+    if (notifier_ && !notifier_->ready()) {
         if(!notifier_->init()) {
             ::close(kqueue_fd_);
             kqueue_fd_ = INVALID_FD;
@@ -98,45 +107,14 @@ Result KQueue::registerFd(SOCKET_FD fd, KMEvent events, IOCallback cb)
         return Result::INVALID_PARAM;
     }
     resizePollItems(fd);
-    struct kevent kevents[2];
-    int nchanges = 0;
-    if (INVALID_FD != poll_items_[fd].fd) {
-        if (!!(poll_items_[fd].events & kEventRead) && !(events & kEventRead)) {
-            EV_SET(&kevents[nchanges++], fd, EVFILT_READ, EV_DELETE, 0, 0, 0);
-            poll_items_[fd].events &= ~kEventRead;
-        }
-        if (!!(poll_items_[fd].events & kEventWrite) && !(events & kEventWrite)) {
-            EV_SET(&kevents[nchanges++], fd, EVFILT_WRITE, EV_DELETE, 0, 0, 0);
-            poll_items_[fd].events &= ~kEventWrite;
-        }
-        ::kevent(kqueue_fd_, kevents, nchanges, 0, 0, 0);
-        if (poll_items_[fd].events == events) {
-            poll_items_[fd].cb = std::move(cb);
-            return Result::OK;
-        }
-    }
-    nchanges = 0;
-    unsigned short op = EV_ADD;
-    if (work_on_et_mode_) {
-        op |= EV_CLEAR;
-    }
-    if (events & kEventRead) {
-        EV_SET(&kevents[nchanges++], fd, EVFILT_READ, op , 0, 0, 0);
-    }
-    if (events & kEventWrite) {
-        EV_SET(&kevents[nchanges++], fd, EVFILT_WRITE, op , 0, 0, 0);
-    }
     poll_items_[fd].fd = fd;
-    poll_items_[fd].events = events;
     poll_items_[fd].cb = std::move(cb);
-    
-    if(::kevent(kqueue_fd_, kevents, nchanges, 0, 0, 0) == -1) {
-        KM_ERRTRACE("KQueue::registerFd error, fd=" << fd << ", ev=" << events << ", errno=" << errno);
-        return Result::FAILED;
+    auto ret = updateFd(fd, events);
+    if (ret != Result::OK) {
+        poll_items_[fd].reset();
     }
-    KM_INFOTRACE("KQueue::registerFd, fd=" << fd << ", ev=" << events);
-
-    return Result::OK;
+    KM_INFOTRACE("KQueue::registerFd, fd="<<fd<<", ev="<<events<<", ret="<<(int)ret);
+    return ret;
 }
 
 Result KQueue::unregisterFd(SOCKET_FD fd)
@@ -144,7 +122,7 @@ Result KQueue::unregisterFd(SOCKET_FD fd)
     int max_fd = int(poll_items_.size() - 1);
     KM_INFOTRACE("KQueue::unregisterFd, fd="<<fd<<", max_fd="<<max_fd);
     if (fd < 0 || fd > max_fd) {
-        KM_WARNTRACE("KQueue::unregisterFd, failed, max_fd=" << max_fd);
+        KM_WARNTRACE("KQueue::unregisterFd, failed, max_fd="<<max_fd);
         return Result::INVALID_PARAM;
     }
     struct kevent kevents[2];
@@ -167,7 +145,7 @@ Result KQueue::unregisterFd(SOCKET_FD fd)
 Result KQueue::updateFd(SOCKET_FD fd, KMEvent events)
 {
     if(fd < 0 || fd >= poll_items_.size() || INVALID_FD == poll_items_[fd].fd) {
-        return Result::FAILED;
+        return Result::INVALID_PARAM;
     }
     
     struct kevent kevents[2];
@@ -192,10 +170,10 @@ Result KQueue::updateFd(SOCKET_FD fd, KMEvent events)
         op |= EV_CLEAR;
     }
     if (events & kEventRead) {
-        EV_SET(&kevents[nchanges++], fd, EVFILT_READ, op , 0, 0, 0);
+        EV_SET(&kevents[nchanges++], fd, EVFILT_READ, op, 0, 0, 0);
     }
     if (events & kEventWrite) {
-        EV_SET(&kevents[nchanges++], fd, EVFILT_WRITE, op , 0, 0, 0);
+        EV_SET(&kevents[nchanges++], fd, EVFILT_WRITE, op, 0, 0, 0);
     }
     if(nchanges && ::kevent(kqueue_fd_, kevents, nchanges, 0, 0, 0) == -1) {
         KM_ERRTRACE("KQueue::updateFd error, fd="<<fd<<", errno="<<errno);
@@ -233,6 +211,11 @@ Result KQueue::wait(uint32_t wait_ms)
                 } else if (kevents[i].filter == EVFILT_WRITE) {
                     revents |= kEventWrite;
                 }
+#ifdef EVFILT_USER
+                else if (kevents[i].filter == EVFILT_USER) {
+                    continue;
+                }
+#endif
                 if (kevents[i].flags & EV_ERROR) {
                     revents |= kEventError;
                 }
@@ -264,7 +247,15 @@ Result KQueue::wait(uint32_t wait_ms)
 
 void KQueue::notify()
 {
-    notifier_->notify();
+    if (notifier_) {
+        notifier_->notify();
+    } else {
+#ifdef EVFILT_USER
+        struct kevent ev;
+        EV_SET(&ev, 0, EVFILT_USER, 0, NOTE_TRIGGER, 0, 0);
+        while (::kevent(kqueue_fd_, &ev, 1, 0, 0, 0) == -1 && errno == EINTR) ;
+#endif
+    }
 }
 
 IOPoll* createKQueue() {
