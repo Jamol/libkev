@@ -25,10 +25,10 @@
 #include "util/util.h"
 #include "Notifier.h"
 
-KEV_NS_BEGIN
-
 #include <errno.h>
 #include <sys/eventfd.h>
+
+KEV_NS_BEGIN
 
 class EventNotifier : public Notifier
 {
