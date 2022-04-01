@@ -45,6 +45,10 @@ public:
         } else {
             ::fcntl(fds_[READ_FD], F_SETFL, O_RDONLY | O_NONBLOCK);
             ::fcntl(fds_[WRITE_FD], F_SETFL, O_WRONLY | O_NONBLOCK);
+#ifdef FD_CLOEXEC
+            ::fcntl(fds_[READ_FD], F_SETFD, ::fcntl(fds_[READ_FD], F_GETFD) | FD_CLOEXEC);
+            ::fcntl(fds_[WRITE_FD], F_SETFD, ::fcntl(fds_[WRITE_FD], F_GETFD) | FD_CLOEXEC);
+#endif
             return true;
         }
     }
