@@ -6,11 +6,15 @@ CMake is the supported build system
 
 #### requirements
 - A conforming C++14 compiler
-- CMake v3.5 or newer
+- CMake v3.8 or newer
 
 build command: (replace your_os to one of windows/mac/ios/linux/android)
 ```
 $ python ./bld/your_os/build_your_os.py
+```
+build with specified msvc on windows
+```
+$ python ./bld/windows/build_windows.py --msvc vs2017/vs2019/vs2022
 ```
 
 ## example

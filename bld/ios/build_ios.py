@@ -45,17 +45,13 @@ def build_ios(workingPath, outdir):
     os.system('rm -f '+outdir+'/Debug-iphoneos/libkev.a*')
     os.system('rm -f '+outdir+'/Release-iphoneos/libkev.a*')
 
-    archs = ["armv7", "arm64", "x86_64"]
-    arch = "armv7"
-    build_one_arch(workingPath, 'Debug', arch, xcodePath)
-    os.system('mv '+outdir+'/Debug-iphoneos/libkev.a '+outdir+'/Debug-iphoneos/libkev.a.'+arch)
-    build_one_arch(workingPath, 'Release', arch, xcodePath)
-    os.system('mv '+outdir+'/Release-iphoneos/libkev.a '+outdir+'/Release-iphoneos/libkev.a.'+arch)
-    arch = "arm64"
-    build_one_arch(workingPath, 'Debug', arch, xcodePath)
-    os.system('mv '+outdir+'/Debug-iphoneos/libkev.a '+outdir+'/Debug-iphoneos/libkev.a.'+arch)
-    build_one_arch(workingPath, 'Release', arch, xcodePath)
-    os.system('mv '+outdir+'/Release-iphoneos/libkev.a '+outdir+'/Release-iphoneos/libkev.a.'+arch)
+    archs = ["armv7", "arm64"]
+    for arch in archs:
+        build_one_arch(workingPath, 'Debug', arch, xcodePath)
+        build_one_arch(workingPath, 'Release', arch, xcodePath)
+        os.system('mv '+outdir+'/Debug-iphoneos/libkev.a '+outdir+'/Debug-iphoneos/libkev.a.'+arch)
+        os.system('mv '+outdir+'/Release-iphoneos/libkev.a '+outdir+'/Release-iphoneos/libkev.a.'+arch)
+    
     os.system('lipo -create '+outdir+'/Debug-iphoneos/libkev.a.armv7 '+outdir+'/Debug-iphoneos/libkev.a.arm64 -output '+outdir+'/Debug-iphoneos/libkev.a')
     os.system('lipo -create '+outdir+'/Release-iphoneos/libkev.a.armv7 '+outdir+'/Release-iphoneos/libkev.a.arm64 -output '+outdir+'/Release-iphoneos/libkev.a')
     os.system('rm -f '+outdir+'/Debug-iphoneos/libkev.a.*')

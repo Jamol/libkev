@@ -198,6 +198,10 @@ xcuserdata
 xcshareddata
 obj
 
+# python
+*.pyc
+__pycache__/
+
 # VSCode
 .vscode/
 
