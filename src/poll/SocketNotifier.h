@@ -22,9 +22,9 @@
 #ifndef __SocketNotifier_H__
 #define __SocketNotifier_H__
 
-#include "util/util.h"
-#include "util/defer.h"
-#include "util/skutils.h"
+#include "utils/utils.h"
+#include "utils/defer.h"
+#include "utils/skutils.h"
 #include "Notifier.h"
 
 KEV_NS_BEGIN

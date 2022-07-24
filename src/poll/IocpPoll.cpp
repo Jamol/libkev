@@ -20,8 +20,8 @@
 */
 
 #include "IOPoll.h"
-#include "util/kmtrace.h"
-#include "util/util.h"
+#include "utils/kmtrace.h"
+#include "utils/utils.h"
 
 KEV_NS_BEGIN
 
