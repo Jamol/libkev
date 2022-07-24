@@ -1,4 +1,4 @@
-/* Copyright (c) 2014-2020, Fengping Bao <jamol@live.com>
+/* Copyright (c) 2014-2022, Fengping Bao <jamol@live.com>
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,9 +21,9 @@
 
 #include "EventLoopImpl.h"
 #include "poll/IOPoll.h"
-#include "util/kmqueue.h"
-#include "util/kmtrace.h"
-#include "util/skutils.h"
+#include "utils/kmqueue.h"
+#include "utils/kmtrace.h"
+#include "utils/skutils.h"
 #include <thread>
 #include <condition_variable>
 

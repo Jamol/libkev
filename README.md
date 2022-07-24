@@ -12,7 +12,7 @@ build command: (replace your_os to one of windows/mac/ios/linux/android)
 ```
 $ python ./bld/your_os/build_your_os.py
 ```
-build with specified msvc on windows
+build with specified msvc on windows, default is vs2017
 ```
 $ python ./bld/windows/build_windows.py --msvc vs2017/vs2019/vs2022
 ```

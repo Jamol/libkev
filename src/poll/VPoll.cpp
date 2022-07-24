@@ -21,8 +21,8 @@
 
 #include "IOPoll.h"
 #include "Notifier.h"
-#include "util/kmtrace.h"
-#include "util/skutils.h"
+#include "utils/kmtrace.h"
+#include "utils/skutils.h"
 
 #ifdef KUMA_OS_WIN
 # include <Ws2tcpip.h>

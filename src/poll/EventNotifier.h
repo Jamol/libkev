@@ -22,7 +22,7 @@
 #ifndef __EventNotifier_H__
 #define __EventNotifier_H__
 
-#include "util/util.h"
+#include "utils/utils.h"
 #include "Notifier.h"
 
 #include <errno.h>

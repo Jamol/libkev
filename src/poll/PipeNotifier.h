@@ -22,7 +22,7 @@
 #ifndef __PipeNotifier_H__
 #define __PipeNotifier_H__
 
-#include "util/util.h"
+#include "utils/utils.h"
 #include "Notifier.h"
 
 KEV_NS_BEGIN

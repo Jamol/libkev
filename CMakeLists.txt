@@ -22,7 +22,7 @@ include_directories(${PROJ_ROOT_DIR}/src)
 
 file(GLOB SOURCE_FILES
   ${PROJ_ROOT_DIR}/src/*.cpp
-  ${PROJ_ROOT_DIR}/src/util/*.cpp
+  ${PROJ_ROOT_DIR}/src/utils/*.cpp
   ${PROJ_ROOT_DIR}/src/poll/SelectPoll.cpp
   ${PROJ_ROOT_DIR}/src/poll/VPoll.cpp
   ${PROJ_ROOT_DIR}/src/poll/Notifier.cpp)

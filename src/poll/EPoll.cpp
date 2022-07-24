@@ -21,7 +21,7 @@
 
 #include "IOPoll.h"
 #include "Notifier.h"
-#include "util/kmtrace.h"
+#include "utils/kmtrace.h"
 
 #include <sys/epoll.h>
 
