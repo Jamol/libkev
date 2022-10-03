@@ -27,6 +27,12 @@ KEV_NS_BEGIN
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
 // class EventLoop
+EventLoop::EventLoop()
+: EventLoop(PollType::DEFAULT)
+{
+
+}
+
 EventLoop::EventLoop(PollType poll_type)
 : pimpl_(std::make_shared<Impl>(poll_type))
 {

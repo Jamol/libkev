@@ -80,13 +80,13 @@ enum class Result : int {
 };
 
 enum class PollType {
-    NONE,
+    DEFAULT,
+    NONEIO, // none IO event loop
+    SELECT,
     POLL,
     EPOLL,
     KQUEUE,
-    SELECT,
     IOCP,
-    WINDOW
 };
 
 

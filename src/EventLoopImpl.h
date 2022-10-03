@@ -155,7 +155,7 @@ public:
 class EventLoop::Impl : public KMObject
 {
 public:
-    Impl(PollType poll_type = PollType::NONE);
+    Impl(PollType poll_type);
     ~Impl();
 
 public:

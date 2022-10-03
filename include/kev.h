@@ -62,7 +62,8 @@ public:
     };
     
 public:
-    EventLoop(PollType poll_type = PollType::NONE);
+    EventLoop();
+    EventLoop(PollType poll_type);
     EventLoop(const EventLoop &) = delete;
     EventLoop(EventLoop &&other);
     ~EventLoop();
