@@ -70,7 +70,7 @@ PollType EventLoop::Impl::getPollType() const
     if(poll_) {
         return poll_->getType();
     }
-    return PollType::NONE;
+    return PollType::DEFAULT;
 }
 
 bool EventLoop::Impl::isPollLT() const
@@ -484,6 +484,7 @@ IOPoll* createVPoll();
 IOPoll* createKQueue();
 IOPoll* createSelectPoll();
 IOPoll* createIocpPoll();
+IOPoll* createCVPoll();
 
 IOPoll* createDefaultIOPoll()
 {
@@ -528,6 +529,8 @@ IOPoll* createIOPoll(PollType poll_type)
 #else
             return createDefaultIOPoll();
 #endif
+        case PollType::NONEIO:
+            return createCVPoll();
         default:
             return createDefaultIOPoll();
     }
