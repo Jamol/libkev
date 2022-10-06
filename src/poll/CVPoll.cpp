@@ -21,7 +21,10 @@
 
 #include "IOPoll.h"
 
+#include <chrono>
 #include <condition_variable>
+
+using namespace std::chrono;
 
 KEV_NS_BEGIN
 
@@ -29,9 +32,18 @@ class CVPoll : public IOPoll
 {
 public:
     bool init() override;
-    Result registerFd(SOCKET_FD fd, KMEvent events, IOCallback cb) override;
-    Result unregisterFd(SOCKET_FD fd) override;
-    Result updateFd(SOCKET_FD fd, KMEvent events) override;
+    Result registerFd(SOCKET_FD fd, KMEvent events, IOCallback cb) override
+    {
+        return Result::NOT_SUPPORTED;
+    }
+    Result unregisterFd(SOCKET_FD fd) override
+    {
+        return Result::NOT_SUPPORTED;
+    }
+    Result updateFd(SOCKET_FD fd, KMEvent events) override
+    {
+        return Result::NOT_SUPPORTED;
+    }
     Result wait(uint32_t wait_ms) override;
     void notify() override;
     PollType getType() const override { return PollType::NONEIO; }
@@ -52,27 +64,16 @@ bool CVPoll::init()
     return true;
 }
 
-Result CVPoll::registerFd(SOCKET_FD fd, KMEvent events, IOCallback cb)
-{
-    return Result::NOT_SUPPORTED;
-}
-
-Result CVPoll::unregisterFd(SOCKET_FD fd)
-{
-    return Result::NOT_SUPPORTED;
-}
-
-Result CVPoll::updateFd(SOCKET_FD fd, KMEvent events)
-{
-    return Result::NOT_SUPPORTED;
-}
-
 Result CVPoll::wait(uint32_t wait_ms)
 {
-    auto ms = std::chrono::milliseconds(wait_ms);
+    auto ms = milliseconds(wait_ms);
     {
         std::unique_lock<std::mutex> lk(mutex_);
-        cv_.wait_for(lk, ms, [this] { return ready_; });
+        //timeBeginPeriod(1);
+        if (cv_.wait_for(lk, ms, [this] { return ready_; })) {
+            ready_ = false;
+        }
+        //timeEndPeriod(1);
     }
     return Result::OK;
 }
