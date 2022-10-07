@@ -26,11 +26,7 @@
 
 #include <functional>
 
-#ifdef KUMA_OS_MAC
-# define KEV_NS_BEGIN   namespace kev {
-#else
-# define KEV_NS_BEGIN   namespace kev {
-#endif
+#define KEV_NS_BEGIN   namespace kev {
 #define KEV_NS_END     }
 #define KEV_NS_USING   using namespace kev;
 
