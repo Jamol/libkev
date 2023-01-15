@@ -109,10 +109,10 @@ public:
      * @return return the result of f()
      */
     template<typename F>
-    auto invoke(F &&f)
+    auto invoke(F &&f, Token *token=nullptr, const char *debugStr=nullptr)
     {
         Result err;
-        return invoke(std::forward<F>(f), err);
+        return invoke(std::forward<F>(f), err, token, debugStr);
     }
 
     /* run the task in loop thread and wait untill task is executed.
@@ -124,28 +124,28 @@ public:
      *
      * @return return the result of f()
      */
-    template<typename F, std::enable_if_t<!std::is_same<decltype(std::declval<F>()()), void>{}, int> = 0>
-    auto invoke(F &&f, Result &err)
+    template<typename F, std::enable_if_t<!std::is_void<decltype(std::declval<F>()())>{}, int> = 0>
+    auto invoke(F &&f, Result &err, Token *token=nullptr, const char *debugStr=nullptr)
     {
-        static_assert(!std::is_same<decltype(f()), void>{}, "is void");
+        static_assert(!std::is_void<decltype(f())>{}, "is void");
         if (inSameThread()) {
             return f();
         }
         using ReturnType = decltype(f());
         ReturnType retval;
         auto task_sync = [&] { retval = f(); };
-        err = sync(std::move(task_sync));
+        err = sync(std::move(task_sync), token, debugStr);
         return retval;
     }
 
-    template<typename F, std::enable_if_t<std::is_same<decltype(std::declval<F>()()), void>{}, int> = 0>
-    void invoke(F &&f, Result &err)
+    template<typename F, std::enable_if_t<std::is_void<decltype(std::declval<F>()())>{}, int> = 0>
+    void invoke(F &&f, Result &err, Token *token=nullptr, const char *debugStr=nullptr)
     {
-        static_assert(std::is_same<decltype(f()), void>{}, "not void");
+        static_assert(std::is_void<decltype(f())>{}, "not void");
         if (inSameThread()) {
             return f();
         }
-        err = sync(std::forward<F>(f));
+        err = sync(std::forward<F>(f), token, debugStr);
     }
 
     /* run the task in loop thread and wait untill task is executed.
@@ -155,12 +155,12 @@ public:
      * @param task the task to be executed. it will always be executed when call success
      */
     template<typename F, std::enable_if_t<!std::is_copy_constructible<F>{}, int> = 0>
-    Result sync(F &&f)
+    Result sync(F &&f, Token *token=nullptr, const char *debugStr=nullptr)
     {
         lambda_wrapper<F> wf{std::forward<F>(f)};
-        return sync(Task(std::move(wf)));
+        return sync(Task(std::move(wf)), token, debugStr);
     }
-    Result sync(Task task);
+    Result sync(Task task, Token *token=nullptr, const char *debugStr=nullptr);
     
     /* run the task in loop thread.
      * the task will be executed at once if called on loop thread

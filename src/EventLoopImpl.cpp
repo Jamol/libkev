@@ -260,8 +260,15 @@ Result EventLoop::Impl::appendTask(Task task, EventLoopToken *token, const char 
     } else {
         ptr = std::make_shared<TaskSlot>(std::move(task), std::move(dstr));
     }
-    LockGuard g(task_mutex_);
-    task_queue_.emplace_back(std::move(ptr));
+    bool need_wakeup;
+    {
+        LockGuard g(task_mutex_);
+        need_wakeup = task_queue_.empty();
+        task_queue_.emplace_back(std::move(ptr));
+    }
+    if (need_wakeup) {
+        wakeup();
+    }
     return Result::OK;
 }
 
@@ -287,29 +294,51 @@ Result EventLoop::Impl::appendDelayedTask(uint32_t delay_ms, Task task, EventLoo
     return Result::OK;
 }
 
-Result EventLoop::Impl::sync(Task task)
+template <typename F>
+class sync_clean
+{
+public:
+    sync_clean(F &&f) : f(std::move(f)) {}
+    sync_clean(sync_clean&& other) : f(std::move(other.f)), cleared(other.cleared)
+    {
+        other.cleared = true;
+    }
+    sync_clean(const sync_clean& other) = delete;
+    ~sync_clean() { if (!cleared) f(); }
+
+private:
+    F f;
+    bool cleared = false;
+};
+Result EventLoop::Impl::sync(Task task, EventLoopToken *token, const char *debugStr)
 {
     if(inSameThread()) {
         task();
+        return Result::OK;
     } else {
         std::mutex m;
         std::condition_variable cv;
         bool ready = false;
-        Task task_sync([&] {
-            task();
-            std::unique_lock<std::mutex> lk(m);
+        bool executed = false;
+        auto clean = [&] {
+            std::lock_guard<std::mutex> g(m);
             ready = true;
             cv.notify_one(); // the waiting thread may block again since m is not released
-            lk.unlock();
-        });
-        auto ret = post(std::move(task_sync));
+        };
+        sync_clean<decltype(clean)> sc(std::move(clean));
+        auto task_sync = [&, sc{std::move(sc)}] {
+            task();
+            executed = true;
+        };
+        lambda_wrapper<decltype(task_sync)> wf{std::move(task_sync)};
+        auto ret = post(std::move(wf), token, debugStr);
         if (ret != Result::OK) {
             return ret;
         }
         std::unique_lock<std::mutex> lk(m);
         cv.wait(lk, [&ready] { return ready; });
+        return executed ? Result::OK : Result::ABORTED;
     }
-    return Result::OK;
 }
 
 Result EventLoop::Impl::async(Task task, EventLoopToken *token, const char *debugStr)
@@ -324,12 +353,7 @@ Result EventLoop::Impl::async(Task task, EventLoopToken *token, const char *debu
 
 Result EventLoop::Impl::post(Task task, EventLoopToken *token, const char *debugStr)
 {
-    auto ret = appendTask(std::move(task), token, debugStr);
-    if (ret != Result::OK) {
-        return ret;
-    }
-    wakeup();
-    return Result::OK;
+    return appendTask(std::move(task), token, debugStr);
 }
 
 Result EventLoop::Impl::postDelayed(uint32_t delay_ms, Task task, EventLoopToken *token, const char *debugStr)
@@ -418,29 +442,29 @@ void EventLoop::Token::Impl::clearAllTasks()
     pending_dtask_nodes_.splice(pending_dtask_nodes_.end(), std::move(dtask_nodes_));
 
     while(!pending_ttask_nodes_.empty()) {
-        bool needPop = true;
+        bool pop_task = true;
         auto ts = pending_ttask_nodes_.front();
         if (ts->isActive()) {
             ul.unlock();
             ts->cancel(loop && loop->inSameThread());
             ul.lock();
-            needPop = !pending_ttask_nodes_.empty() && ts == pending_ttask_nodes_.front();
+            pop_task = !pending_ttask_nodes_.empty() && ts == pending_ttask_nodes_.front();
         }
-        if (needPop) {
+        if (pop_task) {
             pending_ttask_nodes_.pop_front();
         }
     }
 
     while(!pending_dtask_nodes_.empty()) {
-        bool needPop = true;
+        bool pop_task = true;
         auto ds = pending_dtask_nodes_.front();
         if (ds->isActive()) {
             ul.unlock();
             ds->cancel();
             ul.lock();
-            needPop = !pending_dtask_nodes_.empty() && ds == pending_dtask_nodes_.front();
+            pop_task = !pending_dtask_nodes_.empty() && ds == pending_dtask_nodes_.front();
         }
-        if (needPop) {
+        if (pop_task) {
             pending_dtask_nodes_.pop_front();
         }
     }

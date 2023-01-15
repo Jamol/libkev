@@ -134,9 +134,9 @@ bool EventLoop::inSameThread() const
     return pimpl_->inSameThread();
 }
 
-Result EventLoop::sync(Task task)
+Result EventLoop::sync(Task task, Token *token, const char *debugStr)
 {
-    return pimpl_->sync(std::move(task));
+    return pimpl_->sync(std::move(task), token?token->pimpl():nullptr , debugStr);
 }
 
 Result EventLoop::async(Task task, Token *token, const char *debugStr)
