@@ -21,7 +21,7 @@ public:
     ~DeferExec() { c_(); }
     
     DeferExec(const DeferExec &) = delete;
-    void operator=(const DeferExec &) = delete;
+    DeferExec& operator=(const DeferExec &) = delete;
 private:
     Callable c_;
 };

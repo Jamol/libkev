@@ -99,12 +99,14 @@ public:
             }
         }
     }
+
     enum class State
     {
         ACTIVE,
         RUNNING,
         INACTIVE
     };
+    
     std::atomic<State>  state_{ State::ACTIVE };
     mutable std::mutex  mlock;
 };

@@ -294,21 +294,24 @@ Result EventLoop::Impl::appendDelayedTask(uint32_t delay_ms, Task task, EventLoo
     return Result::OK;
 }
 
-template <typename F>
-class sync_clean
+template <typename Callable>
+class auto_clean
 {
 public:
-    sync_clean(F &&f) : f(std::move(f)) {}
-    sync_clean(sync_clean&& other) : f(std::move(other.f)), cleared(other.cleared)
+    auto_clean(Callable &&c) : c_(std::move(c)) {}
+    auto_clean(auto_clean&& other)
+    : c_(std::move(other.c_)), cleared_(other.cleared_)
     {
-        other.cleared = true;
+        other.cleared_ = true;
     }
-    sync_clean(const sync_clean& other) = delete;
-    ~sync_clean() { if (!cleared) f(); }
+    auto_clean(const auto_clean& other)
+    : auto_clean(std::move(const_cast<auto_clean&>(other)))
+    {}
+    ~auto_clean() { if (!cleared_) c_(); }
 
 private:
-    F f;
-    bool cleared = false;
+    Callable c_;
+    bool cleared_ = false;
 };
 Result EventLoop::Impl::sync(Task task, EventLoopToken *token, const char *debugStr)
 {
@@ -325,13 +328,12 @@ Result EventLoop::Impl::sync(Task task, EventLoopToken *token, const char *debug
             ready = true;
             cv.notify_one(); // the waiting thread may block again since m is not released
         };
-        sync_clean<decltype(clean)> sc(std::move(clean));
+        auto_clean<decltype(clean)> sc(std::move(clean));
         auto task_sync = [&, sc{std::move(sc)}] {
             task();
             executed = true;
         };
-        lambda_wrapper<decltype(task_sync)> wf{std::move(task_sync)};
-        auto ret = post(std::move(wf), token, debugStr);
+        auto ret = post(task_sync, token, debugStr);
         if (ret != Result::OK) {
             return ret;
         }
