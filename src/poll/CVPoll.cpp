@@ -69,11 +69,11 @@ Result CVPoll::wait(uint32_t wait_ms)
     auto ms = milliseconds(wait_ms);
     {
         std::unique_lock<std::mutex> lk(mutex_);
-        //timeBeginPeriod(1);
+        //bool ret = timeBeginPeriod(1) == TIMERR_NOERROR;
         if (cv_.wait_for(lk, ms, [this] { return ready_; })) {
             ready_ = false;
         }
-        //timeEndPeriod(1);
+        //if (ret) timeEndPeriod(1);
     }
     return Result::OK;
 }

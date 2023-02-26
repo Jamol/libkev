@@ -74,7 +74,7 @@ bool VPoll::init()
         if (!notifier_->init()) {
             return false;
         }
-        IOCallback cb([this](KMEvent ev, void*, size_t) { notifier_->onEvent(ev); });
+        IOCallback cb([this](SOCKET_FD, KMEvent ev, void*, size_t) { notifier_->onEvent(ev); });
         registerFd(notifier_->getReadFD(), kEventRead | kEventError, std::move(cb));
     }
     return true;
@@ -222,7 +222,7 @@ Result VPoll::wait(uint32_t wait_ms)
                 auto revents = get_kuma_events(poll_fds[idx].revents);
                 revents &= item.events;
                 if (revents && item.cb) {
-                    item.cb(revents, nullptr, 0);
+                    item.cb(poll_fds[idx].fd, revents, nullptr, 0);
                 }
             }
         }

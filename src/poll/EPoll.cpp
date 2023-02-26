@@ -83,7 +83,7 @@ bool EPoll::init()
             epoll_fd_ = INVALID_FD;
             return false;
         }
-        IOCallback cb ([this](KMEvent ev, void*, size_t) { notifier_->onEvent(ev); });
+        IOCallback cb ([this](SOCKET_FD, KMEvent ev, void*, size_t) { notifier_->onEvent(ev); });
         registerFd(notifier_->getReadFD(), kEventRead | kEventError, std::move(cb));
     }
     return true;
@@ -194,7 +194,7 @@ Result EPoll::wait(uint32_t wait_ms)
                 revents &= poll_items_[fd].events;
                 if (revents) {
                     auto &cb = poll_items_[fd].cb;
-                    if(cb) cb(revents, nullptr, 0);
+                    if(cb) cb(fd, revents, nullptr, 0);
                 }
             }
         }

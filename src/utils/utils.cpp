@@ -593,7 +593,7 @@ bool remove_token(std::string &tokens, const std::string &token, char delim)
     return removed;
 }
 
-size_t generateRandomBytes(void *buf, size_t len)
+size_t random_bytes(void *buf, size_t len)
 {
     using rand_type = unsigned int;
     using bytes_randomizer = std::independent_bits_engine<std::default_random_engine, sizeof(rand_type)*8, rand_type>;

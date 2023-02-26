@@ -95,7 +95,6 @@ public:
                 // wait for running complete
                 mlock.lock();
                 mlock.unlock();
-                clearTask();
             }
         }
     }

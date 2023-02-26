@@ -118,7 +118,7 @@ Result IocpPoll::wait(uint32_t wait_ms)
                 if (fd < poll_items_.size()) {
                     IOCallback &cb = poll_items_[fd].cb;
                     size_t io_size = entries[i].dwNumberOfBytesTransferred;
-                    if (cb) cb(0, entries[i].lpOverlapped, io_size);
+                    if (cb) cb(fd, 0, entries[i].lpOverlapped, io_size);
                 }
             }
         }
@@ -143,7 +143,7 @@ Result IocpPoll::wait(uint32_t wait_ms)
         if (fd < poll_items_.size()) {
             IOCallback &cb = poll_items_[fd].cb;
             size_t io_size = bytes;
-            if (cb) cb(0, pOverlapped, io_size);
+            if (cb) cb(fd, 0, pOverlapped, io_size);
         }
     }
     else {
