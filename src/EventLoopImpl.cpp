@@ -87,7 +87,7 @@ Result EventLoop::Impl::registerFd(SOCKET_FD fd, uint32_t events, IOCallback cb)
         return poll_->registerFd(fd, events, std::move(cb));
     }
     return async([=, cb=std::move(cb)] () mutable {
-        auto ret = poll_->registerFd(fd, events, cb);
+        auto ret = poll_->registerFd(fd, events, std::move(cb));
         if(ret != Result::OK) {
             return ;
         }

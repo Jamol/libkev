@@ -24,6 +24,8 @@
 #include "utils/kmtrace.h"
 #include "utils/skutils.h"
 
+#include <algorithm>
+
 #ifdef KUMA_OS_WIN
 # include <Ws2tcpip.h>
 #else
