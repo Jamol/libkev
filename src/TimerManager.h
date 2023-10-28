@@ -60,6 +60,10 @@ public:
     {
     public:
         TimerNode() = default;
+        TimerNode(const TimerNode&) = delete;
+        TimerNode(TimerNode&& other) = delete;
+        TimerNode& operator= (const TimerNode &other) = delete;
+        TimerNode& operator= (TimerNode &&other) = delete;
         void operator() ()
         {
             if (!cancelled_ && cb_) {
@@ -145,7 +149,12 @@ public:
     using TimerCallback = Timer::TimerCallback;
     
     Impl(TimerManager::Ptr mgr);
+    Impl(const Impl &other) = delete;
+    Impl(Impl &&other) = delete;
     ~Impl();
+
+    Impl& operator= (const Impl &other) = delete;
+    Impl& operator= (Impl &&other) = delete;
     
     template<typename F, std::enable_if_t<!std::is_copy_constructible<F>{}, int> = 0>
     bool schedule(uint32_t delay_ms, Mode mode, F &&f)

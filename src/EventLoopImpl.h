@@ -155,7 +155,12 @@ class EventLoop::Impl : public KMObject
 {
 public:
     Impl(PollType poll_type);
+    Impl(const Impl &other) = delete;
+    Impl(Impl &&other) = delete;
     ~Impl();
+
+    Impl& operator= (const Impl &other) = delete;
+    Impl& operator= (Impl &&other) = delete;
 
 public:
     bool init();
