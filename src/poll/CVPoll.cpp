@@ -46,7 +46,7 @@ public:
     }
     Result wait(uint32_t wait_ms) override;
     void notify() override;
-    PollType getType() const override { return PollType::NONEIO; }
+    PollType getType() const override { return PollType::STLCV; }
     bool isLevelTriggered() const override { return false; }
     
 private:

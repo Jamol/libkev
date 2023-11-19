@@ -83,6 +83,9 @@ bool EventLoop::Impl::isPollLT() const
 
 Result EventLoop::Impl::registerFd(SOCKET_FD fd, uint32_t events, IOCallback cb)
 {
+    if (getPollType() == PollType::STLCV) {
+        return Result::NOT_SUPPORTED;
+    }
     if(inSameThread()) {
         return poll_->registerFd(fd, events, std::move(cb));
     }
@@ -96,6 +99,9 @@ Result EventLoop::Impl::registerFd(SOCKET_FD fd, uint32_t events, IOCallback cb)
 
 Result EventLoop::Impl::updateFd(SOCKET_FD fd, uint32_t events)
 {
+    if (getPollType() == PollType::STLCV) {
+        return Result::NOT_SUPPORTED;
+    }
     if(inSameThread()) {
         return poll_->updateFd(fd, events);
     }
@@ -109,6 +115,9 @@ Result EventLoop::Impl::updateFd(SOCKET_FD fd, uint32_t events)
 
 Result EventLoop::Impl::unregisterFd(SOCKET_FD fd, bool close_fd)
 {
+    if (getPollType() == PollType::STLCV) {
+        return Result::NOT_SUPPORTED;
+    }
     if(inSameThread()) {
         auto ret = poll_->unregisterFd(fd);
         if(close_fd) {
@@ -555,7 +564,7 @@ IOPoll* createIOPoll(PollType poll_type)
 #else
             return createDefaultIOPoll();
 #endif
-        case PollType::NONEIO:
+        case PollType::STLCV:
             return createCVPoll();
         default:
             return createDefaultIOPoll();

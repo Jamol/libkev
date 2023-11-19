@@ -29,7 +29,7 @@
 
 KEV_NS_BEGIN
 
-#define MAX_EVENT_NUM   500
+#define MAX_EVENT_NUM   256
 
 class KQueue : public IOPoll
 {
@@ -199,17 +199,20 @@ Result KQueue::wait(uint32_t wait_ms)
         }
         KM_INFOTRACE("KQueue::wait, nevents="<<nevents<<", errno="<<errno);
     } else {
-        SOCKET_FD fds[MAX_EVENT_NUM] = { INVALID_FD };
+        std::pair<SOCKET_FD, size_t> fds[MAX_EVENT_NUM];
         int nfds = 0;
         int max_fd = int(poll_items_.size() - 1);
         for (int i=0; i<nevents; ++i) {
             SOCKET_FD fd = (SOCKET_FD)kevents[i].ident;
             if(fd >= 0 && fd <= max_fd) {
                 KMEvent revents = 0;
+                size_t io_size = 0;
                 if (kevents[i].filter == EVFILT_READ) {
                     revents |= kEventRead;
+                    io_size = kevents[i].data;
                 } else if (kevents[i].filter == EVFILT_WRITE) {
                     revents |= kEventWrite;
+                    io_size = kevents[i].data;
                 }
 #ifdef EVFILT_USER
                 else if (kevents[i].filter == EVFILT_USER) {
@@ -223,13 +226,13 @@ Result KQueue::wait(uint32_t wait_ms)
                     continue;
                 }
                 if (poll_items_[fd].revents == 0) {
-                    fds[nfds++] = fd;
+                    fds[nfds++] = {fd, io_size};
                 }
                 poll_items_[fd].revents = revents;
             }
         }
         for (int i=0; i<nfds; ++i) {
-            SOCKET_FD fd = fds[i];
+            SOCKET_FD fd = fds[i].first;
             if (fd < poll_items_.size()) {
                 uint32_t revents = poll_items_[fd].revents;
                 poll_items_[fd].revents = 0;
@@ -237,7 +240,7 @@ Result KQueue::wait(uint32_t wait_ms)
                 revents &= poll_items_[fd].events;
                 if (revents) {
                     auto &cb = poll_items_[fd].cb;
-                    if(cb) cb(fd, revents, nullptr, 0);
+                    if(cb) cb(fd, revents, nullptr, fds[i].second);
                 }
             }
         }
