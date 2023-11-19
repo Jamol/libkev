@@ -78,12 +78,12 @@ enum class Result : int {
 
 enum class PollType {
     DEFAULT,
-    NONEIO, // none IO event loop
     SELECT,
     POLL,
     EPOLL,
     KQUEUE,
     IOCP,
+    STLCV, // none IO event loop
 };
 
 
