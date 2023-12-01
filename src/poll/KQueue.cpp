@@ -80,15 +80,16 @@ bool KQueue::init()
     if(INVALID_FD == kqueue_fd_) {
         return false;
     }
-#ifdef EVFILT_USER
+#if defined(EVFILT_USER) && defined(NOTE_TRIGGER)
     struct kevent ev;
     EV_SET(&ev, 0, EVFILT_USER, EV_ADD|EV_CLEAR, 0, 0, 0);
     if (::kevent(kqueue_fd_, &ev, 1, 0, 0, 0) != -1) {
         notifier_.reset();
-    } else {
+    } else 
+#endif
+    {
         notifier_ = Notifier::createNotifier();
     }
-#endif
     if (notifier_ && !notifier_->ready()) {
         if(!notifier_->init()) {
             ::close(kqueue_fd_);
@@ -214,7 +215,7 @@ Result KQueue::wait(uint32_t wait_ms)
                     revents |= kEventWrite;
                     io_size = kevents[i].data;
                 }
-#ifdef EVFILT_USER
+#if defined(EVFILT_USER)
                 else if (kevents[i].filter == EVFILT_USER) {
                     continue;
                 }
@@ -253,7 +254,7 @@ void KQueue::notify()
     if (notifier_) {
         notifier_->notify();
     } else {
-#ifdef EVFILT_USER
+#if defined(EVFILT_USER) && defined(NOTE_TRIGGER)
         struct kevent ev;
         EV_SET(&ev, 0, EVFILT_USER, 0, NOTE_TRIGGER, 0, 0);
         while (::kevent(kqueue_fd_, &ev, 1, 0, 0, 0) == -1 && errno == EINTR) ;
