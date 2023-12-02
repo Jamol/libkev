@@ -24,6 +24,8 @@
 
 #include "kmconf.h"
 
+#include <stdint.h>
+#include <stddef.h>
 #include <functional>
 
 #define KEV_NS_BEGIN   namespace kev {
