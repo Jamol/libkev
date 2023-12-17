@@ -519,6 +519,7 @@ IOPoll* createVPoll();
 IOPoll* createKQueue();
 IOPoll* createSelectPoll();
 IOPoll* createIocpPoll();
+IOPoll* createRunLoop();
 IOPoll* createCVPoll();
 
 IOPoll* createDefaultIOPoll()
@@ -561,6 +562,12 @@ IOPoll* createIOPoll(PollType poll_type)
         case PollType::IOCP:
 #ifdef KUMA_OS_WIN
             return createIocpPoll();
+#else
+            return createDefaultIOPoll();
+#endif
+        case PollType::RUNLOOP:
+#ifdef KUMA_OS_MAC
+            return createRunLoop();
 #else
             return createDefaultIOPoll();
 #endif
