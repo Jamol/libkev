@@ -54,7 +54,7 @@ if (CMAKE_SYSTEM_NAME MATCHES "Windows")
     add_definitions(-DWIN32)
   endif()
 elseif (CMAKE_SYSTEM_NAME MATCHES "Darwin")
-  
+  add_definitions(-DKEV_HAS_RUNLOOP)
 elseif (CMAKE_SYSTEM_NAME MATCHES "Android")
   add_definitions(-DANDROID)
 elseif (CMAKE_SYSTEM_NAME MATCHES "Linux")

@@ -566,7 +566,7 @@ IOPoll* createIOPoll(PollType poll_type)
             return createDefaultIOPoll();
 #endif
         case PollType::RUNLOOP:
-#ifdef KUMA_OS_MAC
+#if defined(KUMA_OS_MAC) && defined(KEV_HAS_RUNLOOP)
             return createRunLoop();
 #else
             return createDefaultIOPoll();

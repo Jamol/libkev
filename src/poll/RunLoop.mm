@@ -19,6 +19,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
+#ifdef KEV_HAS_RUNLOOP
+
 #include "IOPoll.h"
 #include "utils/kmtrace.h"
 
@@ -310,3 +312,5 @@ static void KevSocketCallBack(CFSocketRef s,
 }
 
 KEV_NS_END
+
+#endif // KEV_HAS_RUNLOOP
