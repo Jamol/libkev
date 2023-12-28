@@ -127,6 +127,13 @@ if (CMAKE_SYSTEM_NAME MATCHES "Darwin")
   endif ()
 endif ()
 
+
+if (KEV_ENABLE_ASAN)
+  add_compile_options(-fsanitize=address,undefined -fsanitize-recover=all -fno-omit-frame-pointer
+                      -fno-optimize-sibling-calls -fno-var-tracking -fno-stack-protector -O1 -g1)
+  message("Address Sanitizer enabled")
+endif()
+
 add_library(kev STATIC ${SOURCE_FILES})
 
 if (CMAKE_SYSTEM_NAME MATCHES "Windows")
@@ -155,7 +162,15 @@ elseif (CMAKE_SYSTEM_NAME MATCHES "Darwin")
     target_compile_options(kev PRIVATE $<$<CONFIG:Release>:-g -Os>)
   endif()
 elseif (CMAKE_SYSTEM_NAME MATCHES "Linux")
-  set(LIBRARY_OUTPUT_PATH "${PROJ_ROOT_DIR}/lib/linux/${CMAKE_BUILD_TYPE}")
+  if (NOT DEFINED CMAKE_SYSTEM_PROCESS OR CMAKE_SYSTEM_PROCESS STREQUAL "")
+    set(CMAKE_SYSTEM_PROCESS ${CMAKE_HOST_SYSTEM_PROCESSOR})
+  endif ()
+  if (CMAKE_SYSTEM_PROCESS STREQUAL "aarch64" )
+    set(CMAKE_SYSTEM_PROCESS "arm64")
+  endif ()
+  
+  message("CMAKE_SYSTEM_PROCESS=${CMAKE_SYSTEM_PROCESS}")
+  set(LIBRARY_OUTPUT_PATH "${PROJ_ROOT_DIR}/lib/linux/${CMAKE_SYSTEM_PROCESS}/${CMAKE_BUILD_TYPE}")
 elseif (CMAKE_SYSTEM_NAME MATCHES "Android")
   set(LIBRARY_OUTPUT_PATH "${PROJ_ROOT_DIR}/lib/android/${CMAKE_ANDROID_ARCH_ABI}")
 endif ()
