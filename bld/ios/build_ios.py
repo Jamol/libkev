@@ -26,15 +26,18 @@ def build_one_arch(workingPath, buildtype, arch, xcodePath):
     if not os.path.exists(buildPath):
         os.makedirs(buildPath)
     os.chdir(buildPath)
-    platform = 'iPhoneOS' if (arch == 'armv7' or arch == 'arm64') else 'iPhoneSimulator'
+    platform = 'iPhoneOS' if (arch == 'arm64') else 'iPhoneSimulator'
     os.environ['DEVROOT'] = '/'.join([xcodePath, 'Platforms', platform + '.platform', 'Developer'])
     os.environ['SDKROOT'] = os.environ['DEVROOT'] + '/SDKs/' + platform + '.sdk'
     os.environ['BUILD_TOOLS'] = xcodePath
+    if arch == 'arm64_sim':
+        arch = 'arm64'
     cmakeConfig = ['-DCMAKE_BUILD_TYPE='+buildtype,
                    '-DCMAKE_OSX_SYSROOT=$SDKROOT',
                    '-DCMAKE_SYSROOT=$SDKROOT',
                    '-DCMAKE_OSX_ARCHITECTURES='+arch,
-                   '-DCMAKE_TARGET_SYSTEM=ios']
+                   '-DCMAKE_TARGET_SYSTEM=ios',
+                   '-DXCODE_IOS_PLATFORM='+platform.lower()]
     run_and_check_error('cmake ../../../../.. ' + ' '.join(cmakeConfig))
     run_and_check_error('make')
     return buildPath+'/lib'
@@ -42,24 +45,27 @@ def build_one_arch(workingPath, buildtype, arch, xcodePath):
 def build_ios(workingPath, outdir):
     xcodePath = get_xcode_root()
 
-    os.system('rm -f '+outdir+'/Debug-iphoneos/libkev.a*')
-    os.system('rm -f '+outdir+'/Release-iphoneos/libkev.a*')
+    os.system('rm -f '+outdir+'/Debug-iphonesimulator/libkev.a*')
+    os.system('rm -f '+outdir+'/Release-iphonesimulator/libkev.a*')
 
-    archs = ["armv7", "arm64"]
+    archs = ["arm64", "arm64_sim", "x86_64"]
     for arch in archs:
         build_one_arch(workingPath, 'Debug', arch, xcodePath)
         build_one_arch(workingPath, 'Release', arch, xcodePath)
-        os.system('mv '+outdir+'/Debug-iphoneos/libkev.a '+outdir+'/Debug-iphoneos/libkev.a.'+arch)
-        os.system('mv '+outdir+'/Release-iphoneos/libkev.a '+outdir+'/Release-iphoneos/libkev.a.'+arch)
+        if arch != 'arm64':
+            os.system('mv '+outdir+'/Debug-iphonesimulator/libkev.a '+
+                      outdir+'/Debug-iphonesimulator/libkev.a.'+arch)
+            os.system('mv '+outdir+'/Release-iphonesimulator/libkev.a '+
+                      outdir+'/Release-iphonesimulator/libkev.a.'+arch)
     
-    os.system('lipo -create '+outdir+'/Debug-iphoneos/libkev.a.armv7 '+outdir+'/Debug-iphoneos/libkev.a.arm64 -output '+outdir+'/Debug-iphoneos/libkev.a')
-    os.system('lipo -create '+outdir+'/Release-iphoneos/libkev.a.armv7 '+outdir+'/Release-iphoneos/libkev.a.arm64 -output '+outdir+'/Release-iphoneos/libkev.a')
-    os.system('rm -f '+outdir+'/Debug-iphoneos/libkev.a.*')
-    os.system('rm -f '+outdir+'/Release-iphoneos/libkev.a.*')
-
-    arch = "x86_64"
-    build_one_arch(workingPath, 'Debug', arch, xcodePath)
-    build_one_arch(workingPath, 'Release', arch, xcodePath)
+    os.system('lipo -create '+outdir+'/Debug-iphonesimulator/libkev.a.arm64_sim '+
+              outdir+'/Debug-iphonesimulator/libkev.a.x86_64 -output '+
+              outdir+'/Debug-iphonesimulator/libkev.a')
+    os.system('lipo -create '+outdir+'/Release-iphonesimulator/libkev.a.arm64_sim '+
+              outdir+'/Release-iphonesimulator/libkev.a.x86_64 -output '+
+              outdir+'/Release-iphonesimulator/libkev.a')
+    os.system('rm -f '+outdir+'/Debug-iphonesimulator/libkev.a.*')
+    os.system('rm -f '+outdir+'/Release-iphonesimulator/libkev.a.*')
 
 
 def ios_main(argv):
