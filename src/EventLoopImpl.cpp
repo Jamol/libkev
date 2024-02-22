@@ -434,7 +434,7 @@ void EventLoop::Token::Impl::appendDelayedTaskNode(DelayedTaskSlotPtr &node)
 
 void EventLoop::Token::Impl::clearInactiveDelayedTasks()
 {
-    for (auto it = dtask_nodes_.begin(); it != dtask_nodes_.end(); ++it) {
+    for (auto it = dtask_nodes_.begin(); it != dtask_nodes_.end(); ) {
         if (!(*it)->isActive()) {
             //(*it)->cancel();
             it = dtask_nodes_.erase(it);
