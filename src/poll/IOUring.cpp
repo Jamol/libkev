@@ -62,6 +62,16 @@ KEV_NS_BEGIN
 #define SYS_IORING_OP_RECV          27
 #define SYS_IORING_OP_SHUTDOWN      34
 
+#if !defined(IORING_ASYNC_CANCEL_ALL)
+# define IORING_ASYNC_CANCEL_ALL	(1U << 0)
+#endif
+#if !defined(IORING_ASYNC_CANCEL_FD)
+#define IORING_ASYNC_CANCEL_FD	(1U << 1)
+#endif
+#if !defined(IORING_ASYNC_CANCEL_ANY)
+#define IORING_ASYNC_CANCEL_ANY (1U << 2)
+#endif
+
 class IOUring final : public IOPoll
 {
 public:
@@ -309,7 +319,6 @@ Result IOUring::submitOp(SOCKET_FD fd, const Op &op)
     return submit_op([&](io_uring_sqe *sqe) {
         sqe->fd = fd;
         sqe->flags = 0;
-        sqe->user_data = (__u64)op.data;
 
         switch (op.oc)
         {
@@ -317,6 +326,7 @@ Result IOUring::submitOp(SOCKET_FD fd, const Op &op)
             sqe->opcode = SYS_IORING_OP_CONNECT;
             sqe->addr = (__u64)op.addr;
             sqe->off = op.addrlen;
+            sqe->user_data = (__u64)op.data;
             if (op.data) op.data->fd = fd;
             return Result::OK;
         case OpCode::ACCEPT:
@@ -326,6 +336,7 @@ Result IOUring::submitOp(SOCKET_FD fd, const Op &op)
             //sqe->accept_flags = op.flags;
             sqe->off = (__u64)op.addr2; // should be addr2, but it is not defined
             sqe->msg_flags = op.flags; // should be accept_flags, but it is not defined
+            sqe->user_data = (__u64)op.data;
             if (op.data) op.data->fd = fd;
             return Result::OK;
         case OpCode::READV:
@@ -333,6 +344,7 @@ Result IOUring::submitOp(SOCKET_FD fd, const Op &op)
             sqe->opcode = to_ioring_opcode(op.oc);
             sqe->addr = (unsigned long)op.iovs;
             sqe->len = op.count;
+            sqe->user_data = (__u64)op.data;
             if (op.data) op.data->fd = fd;
             return Result::OK;
         case OpCode::SEND:
@@ -343,13 +355,18 @@ Result IOUring::submitOp(SOCKET_FD fd, const Op &op)
             sqe->addr = (unsigned long)op.buf;
             sqe->len = op.buflen;
             sqe->msg_flags = op.flags;
+            sqe->user_data = (__u64)op.data;
             if (op.data) op.data->fd = fd;
             return Result::OK;
         case OpCode::CANCEL:
             sqe->opcode = SYS_IORING_OP_ASYNC_CANCEL;
-            sqe->addr = (__u64)op.data;
             sqe->user_data = 0;
-            if (op.data) op.data->fd = fd;
+            if (op.addr) {
+                sqe->addr = (__u64)op.addr;
+            } else {
+                // should be cancel_flags, but it is not defined
+                sqe->msg_flags = IORING_ASYNC_CANCEL_FD | IORING_ASYNC_CANCEL_ALL;
+            }
             return Result::OK;
         
         default:
@@ -400,9 +417,18 @@ void IOUring::complete_ops(struct io_uring_cqe *cqes, int cnt)
 template<typename SQE_OP>
 Result IOUring::submit_op(SQE_OP &&sqe_op)
 {
-    unsigned tail, index, ring_mask;
+    unsigned tail, head, index, ring_mask;
     ring_mask = *sq_ring_.ring_mask;
     tail = *sq_ring_.tail;
+    head = io_uring_smp_load_acquire(sq_ring_.head);
+    if (tail - head >= *sq_ring_.ring_entries) {
+        return Result::AGAIN;
+        /*complete_ops();
+        head = io_uring_smp_load_acquire(sq_ring_.head);
+        if (tail - head >= *sq_ring_.ring_entries) {
+            return Result::AGAIN;
+        }*/
+    }
     index = tail & ring_mask;
     auto* sqe = &sqes_[index];
     memset(sqe, 0, sizeof(*sqe));
