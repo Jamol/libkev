@@ -23,6 +23,7 @@
 #define __KEVAPI_H__
 
 #include "kevdefs.h"
+#include "kevops.h"
 #include "kmtypes.h"
 
 #include <functional>
@@ -86,6 +87,8 @@ public:
      * this API is thread-safe
      */
     Result unregisterFd(SOCKET_FD fd, bool close_fd);
+
+    Result submitOp(SOCKET_FD fd, const Op &op);
     
     PollType getPollType() const;
     bool isPollLT() const; // level trigger

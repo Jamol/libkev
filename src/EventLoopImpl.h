@@ -167,6 +167,7 @@ public:
     Result registerFd(SOCKET_FD fd, uint32_t events, IOCallback cb);
     Result updateFd(SOCKET_FD fd, uint32_t events);
     Result unregisterFd(SOCKET_FD fd, bool close_fd);
+    Result submitOp(SOCKET_FD fd, const Op &op);
     TimerManager::Ptr getTimerMgr() { return timer_mgr_; }
     
     PollType getPollType() const;
