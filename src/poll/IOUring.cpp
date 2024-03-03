@@ -309,7 +309,6 @@ Result IOUring::submitOp(SOCKET_FD fd, const Op &op)
     return submit_op([&](io_uring_sqe *sqe) {
         sqe->fd = fd;
         sqe->flags = 0;
-        sqe->msg_flags = op.flags;
         sqe->user_data = (__u64)op.data;
 
         switch (op.oc)
@@ -324,6 +323,9 @@ Result IOUring::submitOp(SOCKET_FD fd, const Op &op)
             sqe->opcode = SYS_IORING_OP_ACCEPT;
             sqe->addr = (__u64)op.addr;
             //sqe->addr2 = (__u64)op.addr2;
+            //sqe->accept_flags = op.flags;
+            sqe->off = (__u64)op.addr2; // should be addr2, but it is not defined
+            sqe->msg_flags = op.flags; // should be accept_flags, but it is not defined
             if (op.data) op.data->fd = fd;
             return Result::OK;
         case OpCode::READV:
@@ -340,6 +342,7 @@ Result IOUring::submitOp(SOCKET_FD fd, const Op &op)
             sqe->opcode = to_ioring_opcode(op.oc);
             sqe->addr = (unsigned long)op.buf;
             sqe->len = op.buflen;
+            sqe->msg_flags = op.flags;
             if (op.data) op.data->fd = fd;
             return Result::OK;
         case OpCode::CANCEL:
