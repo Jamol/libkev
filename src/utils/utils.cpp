@@ -868,6 +868,9 @@ KEV_NS_BEGIN
 LPFN_CONNECTEX connect_ex = nullptr;
 LPFN_ACCEPTEX accept_ex = nullptr;
 LPFN_CANCELIOEX cancel_io_ex = nullptr;
+LPFN_TRANSMITFILE transmit_file = nullptr;
+LPFN_WSASENDMSG wsa_sendmsg = nullptr;
+LPFN_WSARECVMSG wsa_recvmsg = nullptr;
 KEV_NS_END
 
 KEV_NS_USING
@@ -895,6 +898,20 @@ void kev_init()
     if (::WSAIoctl(sock, SIO_GET_EXTENSION_FUNCTION_POINTER, &guid, sizeof(guid), &accept_ex, sizeof(accept_ex), &bytes, 0, 0) != 0)
     {
         accept_ex = nullptr;
+    }
+
+    guid = WSAID_WSASENDMSG;
+    bytes = 0;
+    if (::WSAIoctl(sock, SIO_GET_EXTENSION_FUNCTION_POINTER, &guid, sizeof(guid), &wsa_sendmsg, sizeof(wsa_sendmsg), &bytes, 0, 0) != 0)
+    {
+        wsa_sendmsg = nullptr;
+    }
+
+    guid = WSAID_WSARECVMSG;
+    bytes = 0;
+    if (::WSAIoctl(sock, SIO_GET_EXTENSION_FUNCTION_POINTER, &guid, sizeof(guid), &wsa_recvmsg, sizeof(wsa_recvmsg), &bytes, 0, 0) != 0)
+    {
+        wsa_recvmsg = nullptr;
     }
     closesocket(sock);
     cancel_io_ex = (LPFN_CANCELIOEX)GetProcAddress(GetModuleHandle(L"KERNEL32"), "CancelIoEx");

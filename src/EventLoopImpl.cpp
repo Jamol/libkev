@@ -138,6 +138,11 @@ Result EventLoop::Impl::unregisterFd(SOCKET_FD fd, bool close_fd)
     }
 }
 
+Result EventLoop::Impl::submitOp(SOCKET_FD fd, const Op &op)
+{
+    return poll_->submitOp(fd, op);
+}
+
 Result EventLoop::Impl::appendObserver(ObserverCallback cb, EventLoopToken *token)
 {
     if (token && token->eventLoop().get() != this) {
@@ -519,6 +524,7 @@ IOPoll* createVPoll();
 IOPoll* createKQueue();
 IOPoll* createSelectPoll();
 IOPoll* createIocpPoll();
+IOPoll* createIOUring();
 IOPoll* createRunLoop();
 IOPoll* createCVPoll();
 
@@ -565,6 +571,15 @@ IOPoll* createIOPoll(PollType poll_type)
 #else
             return createDefaultIOPoll();
 #endif
+        case PollType::IOURING: {
+#if defined(KUMA_OS_LINUX) && !defined(KUMA_OS_ANDROID)
+            auto *poller = createIOUring();
+            if (poller) {
+                return poller;
+            }
+#endif
+            return createDefaultIOPoll();
+        }
         case PollType::RUNLOOP:
 #if defined(KUMA_OS_MAC) && defined(KEV_HAS_RUNLOOP)
             return createRunLoop();

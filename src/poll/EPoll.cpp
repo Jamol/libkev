@@ -36,14 +36,14 @@ public:
     EPoll();
     ~EPoll();
 
-    bool init();
-    Result registerFd(SOCKET_FD fd, KMEvent events, IOCallback cb);
-    Result unregisterFd(SOCKET_FD fd);
-    Result updateFd(SOCKET_FD fd, KMEvent events);
-    Result wait(uint32_t wait_time_ms);
-    void notify();
-    PollType getType() const { return PollType::EPOLL; }
-    bool isLevelTriggered() const { return false; }
+    bool init() override;
+    Result registerFd(SOCKET_FD fd, KMEvent events, IOCallback cb) override;
+    Result unregisterFd(SOCKET_FD fd) override;
+    Result updateFd(SOCKET_FD fd, KMEvent events) override;
+    Result wait(uint32_t wait_time_ms) override;
+    void notify() override;
+    PollType getType() const override { return PollType::EPOLL; }
+    bool isLevelTriggered() const override { return false; }
 
 private:
     uint32_t get_events(KMEvent kuma_events);

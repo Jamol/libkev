@@ -17,6 +17,8 @@
 #define __IOPoll_H__
 
 #include "kevdefs.h"
+#include "kevops.h"
+#include "utils/utils.h"
 
 #ifdef KUMA_OS_WIN
 # include <Ws2tcpip.h>
@@ -100,6 +102,11 @@ public:
     virtual void notify() = 0;
     virtual PollType getType() const = 0;
     virtual bool isLevelTriggered() const = 0;
+
+    virtual Result submitOp(SOCKET_FD fd, const Op &op)
+    {
+        return Result::NOT_SUPPORTED;
+    }
     
 protected:
     void resizePollItems(SOCKET_FD fd) {

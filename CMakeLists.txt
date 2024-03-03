@@ -40,7 +40,8 @@ elseif (CMAKE_SYSTEM_NAME MATCHES "Android")
   file(GLOB ANDROID_SOURCES ${PROJ_ROOT_DIR}/src/poll/EPoll.cpp)
   set(SOURCE_FILES ${SOURCE_FILES} ${ANDROID_SOURCES})
 elseif (CMAKE_SYSTEM_NAME MATCHES "Linux")
-  file(GLOB LINUX_SOURCES ${PROJ_ROOT_DIR}/src/poll/EPoll.cpp)
+  file(GLOB LINUX_SOURCES ${PROJ_ROOT_DIR}/src/poll/EPoll.cpp
+                          ${PROJ_ROOT_DIR}/src/poll/IOUring.cpp)
   set(SOURCE_FILES ${SOURCE_FILES} ${LINUX_SOURCES})
 endif ()
 
