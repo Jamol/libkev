@@ -137,6 +137,7 @@ private:
     OpData notifier_op_data_;
     bool timeout_scheduled_ = false;
     OpData timer_op_data_;
+    unsigned int to_submit_ = 0;
 };
 
 
@@ -149,7 +150,7 @@ inline int __io_uring_setup(unsigned entries, struct io_uring_params *p)
 
 inline int __io_uring_enter(int fd, unsigned to_submit,
                      unsigned min_complete, unsigned flags,
-                     sigset_t *sig, size_t sz)
+                     const void *sig, size_t sz)
 {
     return (int) syscall(__NR_io_uring_enter, fd, to_submit,
                          min_complete, flags, sig, sz);
@@ -287,6 +288,7 @@ bool IOUring::init()
             sqe->fd = efd;
             sqe->user_data = (__u64)&notifier_op_data_;
             sqe->poll_events = POLLIN;
+            sqe->len = IORING_POLL_ADD_MULTI;
             return Result::OK;
         });
     }
@@ -466,6 +468,7 @@ Result IOUring::submit_op(SQE_OP &&sqe_op)
     }
     sq_ring_.array[index] = index;
     ++tail;
+    ++to_submit_;
     io_uring_smp_store_release(sq_ring_.tail, tail);
     /*
     //write_barrier();
@@ -478,6 +481,10 @@ Result IOUring::submit_op(SQE_OP &&sqe_op)
 
 Result IOUring::wait(uint32_t wait_ms)
 {
+    unsigned flags = IORING_ENTER_GETEVENTS;
+    size_t argsz = 0;
+    void* parg = nullptr;
+#if 0
     if (!timeout_scheduled_) {
         struct timespec *pts = nullptr;
         if(wait_ms != -1) {
@@ -498,10 +505,21 @@ Result IOUring::wait(uint32_t wait_ms)
             });
         }
     }
-    //KM_INFOTRACE("iouring enter, this=" << this);
-    unsigned flags = IORING_ENTER_GETEVENTS;
-    int ret = __io_uring_enter(uring_fd_, 1, 1, flags, nullptr, 0);
-    //KM_INFOTRACE("iouring leave, ret=" << ret << ", this=" << this);
+#else
+    struct timespec tso;
+    struct io_uring_getevents_arg arg{0, 0, 0, 0};
+    if(wait_ms != -1) {
+        tso.tv_sec = wait_ms/1000;
+        tso.tv_nsec = (wait_ms - to_val_.tv_sec*1000)*1000*1000;
+        arg.ts = (__u64)&tso;
+        argsz = sizeof(arg);
+        parg = &arg;
+        flags |= IORING_ENTER_EXT_ARG;
+    }
+#endif
+    unsigned int to_submit = to_submit_;
+    to_submit_ = 0;
+    int ret = __io_uring_enter(uring_fd_, to_submit, 1, flags, parg, argsz);
     if (ret >= 0) {
         complete_ops();
     }
@@ -545,7 +563,7 @@ IOPoll* createIOUring() {
     struct utsname utsn;
     if (::uname(&utsn) == 0) {
         KM_INFOTRACE("kernal version: " << utsn.release);
-        if (strcmp(utsn.release, "5.10.0") > 0) {
+        if (strcmp(utsn.release, "5.13.0") > 0) {
             return new IOUring();
         }
     }
