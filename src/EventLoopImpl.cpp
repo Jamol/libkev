@@ -571,8 +571,8 @@ IOPoll* createIOPoll(PollType poll_type)
 #else
             return createDefaultIOPoll();
 #endif
-        case PollType::IOURING: {
-#if defined(KUMA_OS_LINUX) && !defined(KUMA_OS_ANDROID)
+        case PollType::IORING: {
+#if defined(KUMA_HAS_IOURING)
             auto *poller = createIOUring();
             if (poller) {
                 return poller;

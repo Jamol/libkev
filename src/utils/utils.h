@@ -30,9 +30,6 @@
 # include <sys/socket.h>
 # include <sys/types.h>
 # include <unistd.h>
-# if defined(KUMA_OS_LINUX) && !defined(KUMA_OS_ANDROID)
-#  include <sys/syscall.h>
-# endif
 #endif // KUMA_OS_WIN
 
 #include <string>

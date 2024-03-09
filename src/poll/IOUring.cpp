@@ -19,6 +19,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
+#if defined(KUMA_HAS_IOURING)
+
 #include "IOPoll.h"
 #include "EventNotifier.h"
 #include "utils/kmtrace.h"
@@ -44,8 +46,6 @@
 
 KEV_NS_BEGIN
 
-#define MAX_EPOLL_FDS   5000
-#define MAX_EVENT_NUM   500
 #define QUEUE_DEPTH     256
 
 #define SYS_IORING_OP_NOP           IORING_OP_NOP
@@ -54,13 +54,13 @@ KEV_NS_BEGIN
 #define SYS_IORING_OP_SENDMSG       IORING_OP_SENDMSG
 #define SYS_IORING_OP_RECVMSG       IORING_OP_RECVMSG
 #define SYS_IORING_OP_TIMEOUT       IORING_OP_TIMEOUT
-#define SYS_IORING_OP_ACCEPT        13
-#define SYS_IORING_OP_ASYNC_CANCEL  14
-#define SYS_IORING_OP_CONNECT       16
-#define SYS_IORING_OP_CLOSE         19
-#define SYS_IORING_OP_SEND          26
-#define SYS_IORING_OP_RECV          27
-#define SYS_IORING_OP_SHUTDOWN      34
+#define SYS_IORING_OP_ACCEPT        IORING_OP_ACCEPT
+#define SYS_IORING_OP_ASYNC_CANCEL  IORING_OP_ASYNC_CANCEL
+#define SYS_IORING_OP_CONNECT       IORING_OP_CONNECT
+#define SYS_IORING_OP_CLOSE         IORING_OP_CLOSE
+#define SYS_IORING_OP_SEND          IORING_OP_SEND
+#define SYS_IORING_OP_RECV          IORING_OP_RECV
+#define SYS_IORING_OP_SHUTDOWN      IORING_OP_SHUTDOWN 
 
 #if !defined(IORING_ASYNC_CANCEL_ALL)
 # define IORING_ASYNC_CANCEL_ALL	(1U << 0)
@@ -71,6 +71,8 @@ KEV_NS_BEGIN
 #if !defined(IORING_ASYNC_CANCEL_ANY)
 #define IORING_ASYNC_CANCEL_ANY (1U << 2)
 #endif
+
+#define TIMEOUT_FD_VAL -9527
 
 class IOUring final : public IOPoll
 {
@@ -84,7 +86,7 @@ public:
     Result updateFd(SOCKET_FD fd, KMEvent events) override;
     Result wait(uint32_t wait_time_ms) override;
     void notify() override;
-    PollType getType() const override { return PollType::EPOLL; }
+    PollType getType() const override { return PollType::IORING; }
     bool isLevelTriggered() const override { return false; }
 
     Result submitOp(SOCKET_FD fd, const Op &op) override;
@@ -132,7 +134,9 @@ private:
     struct timespec to_val_;
 
     EventNotifier notifier_;
-    OpData op_data_;
+    OpData notifier_op_data_;
+    bool timeout_scheduled_ = false;
+    OpData timer_op_data_;
 };
 
 
@@ -165,11 +169,18 @@ static uint8_t to_ioring_opcode(OpCode op);
 IOUring::IOUring()
 : uring_fd_(INVALID_FD)
 {
-    op_data_.fd = notifier_.getReadFD();
-    op_data_.context = &notifier_;
-    op_data_.handler = [] (SOCKET_FD, int res, void* ctx) {
+    notifier_op_data_.context = &notifier_;
+    notifier_op_data_.handler = [] (SOCKET_FD fd, int res, void* ctx) {
+        //KM_INFOTRACE("IOUring notifier callback, fd=" << fd);
         auto * notifier = static_cast<EventNotifier*>(ctx);
         notifier->onEvent(kEventRead);
+    };
+    timer_op_data_.fd = TIMEOUT_FD_VAL;
+    timer_op_data_.context = this;
+    timer_op_data_.handler = [] (SOCKET_FD fd, int res, void* ctx) {
+        //KM_INFOTRACE("IOUring timer callback, fd=" << fd);
+        auto * _this = static_cast<IOUring*>(ctx);
+        _this->timeout_scheduled_ = false;
     };
 }
 
@@ -262,6 +273,24 @@ bool IOUring::init()
     cq_ring_.entries = p.cq_entries;
     cq_ring_.ring_ptr = cq_ptr;
 
+
+    // register notifier
+    if (!notifier_.ready()) {
+        if(!notifier_.init()) {
+            return false;
+        }
+        auto efd = notifier_.getReadFD();
+        notifier_op_data_.fd = efd;
+        //__io_uring_register(uring_fd_, IORING_REGISTER_EVENTFD, &efd, 1);
+        submit_op([&](io_uring_sqe *sqe) {
+            sqe->opcode = IORING_OP_POLL_ADD;
+            sqe->fd = efd;
+            sqe->user_data = (__u64)&notifier_op_data_;
+            sqe->poll_events = POLLIN;
+            return Result::OK;
+        });
+    }
+    timeout_scheduled_ = false;
     return true;
 }
 
@@ -313,6 +342,7 @@ Result IOUring::updateFd(SOCKET_FD fd, KMEvent events)
 
 Result IOUring::submitOp(SOCKET_FD fd, const Op &op)
 {
+    //KM_INFOTRACE("submitOp, fd=" << fd << ", oc=" << int(op.oc) << ", len=" << op.count << ", iovs=" << op.iovs);
     if (op.oc == OpCode::REGISTER || op.oc == OpCode::UNREGISTER) {
         return Result::OK;
     }
@@ -333,9 +363,8 @@ Result IOUring::submitOp(SOCKET_FD fd, const Op &op)
             sqe->opcode = SYS_IORING_OP_ACCEPT;
             sqe->addr = (__u64)op.addr;
             //sqe->addr2 = (__u64)op.addr2;
-            //sqe->accept_flags = op.flags;
             sqe->off = (__u64)op.addr2; // should be addr2, but it is not defined
-            sqe->msg_flags = op.flags; // should be accept_flags, but it is not defined
+            sqe->accept_flags = op.flags;
             sqe->user_data = (__u64)op.data;
             if (op.data) op.data->fd = fd;
             return Result::OK;
@@ -364,8 +393,7 @@ Result IOUring::submitOp(SOCKET_FD fd, const Op &op)
             if (op.addr) {
                 sqe->addr = (__u64)op.addr;
             } else {
-                // should be cancel_flags, but it is not defined
-                sqe->msg_flags = IORING_ASYNC_CANCEL_FD | IORING_ASYNC_CANCEL_ALL;
+                sqe->cancel_flags = IORING_ASYNC_CANCEL_FD | IORING_ASYNC_CANCEL_ALL;
             }
             return Result::OK;
         
@@ -450,29 +478,30 @@ Result IOUring::submit_op(SQE_OP &&sqe_op)
 
 Result IOUring::wait(uint32_t wait_ms)
 {
-    struct timespec *pts = nullptr;
-    if(wait_ms != -1) {
-        to_val_.tv_sec = wait_ms/1000;
-        to_val_.tv_nsec = (wait_ms - to_val_.tv_sec*1000)*1000*1000;
-        pts = &to_val_;
+    if (!timeout_scheduled_) {
+        struct timespec *pts = nullptr;
+        if(wait_ms != -1) {
+            to_val_.tv_sec = wait_ms/1000;
+            to_val_.tv_nsec = (wait_ms - to_val_.tv_sec*1000)*1000*1000;
+            pts = &to_val_;
+        }
+        if (pts) {
+            submit_op([&](io_uring_sqe *sqe) {
+                sqe->opcode = IORING_OP_TIMEOUT;
+                sqe->fd = TIMEOUT_FD_VAL;
+                sqe->off = 1; // count
+                sqe->addr = (unsigned long)pts;
+                sqe->len = pts ? 1 : 0;
+                sqe->user_data = (__u64)&timer_op_data_;
+                timeout_scheduled_ = true;
+                return Result::OK;
+            });
+        }
     }
-    submit_op([&](io_uring_sqe *sqe) {
-        sqe->opcode = IORING_OP_TIMEOUT;
-        sqe->fd = -1;
-        sqe->off = 1; // count
-        sqe->addr = (unsigned long)pts;
-        sqe->len = pts ? 1 : 0;
-        return Result::OK;
-    });
-    submit_op([&](io_uring_sqe *sqe) {
-        sqe->opcode = IORING_OP_POLL_ADD;
-        sqe->fd = notifier_.getReadFD();
-        sqe->user_data = (__u64)&op_data_;
-        sqe->poll_events = POLLIN | POLLPRI | POLLERR;
-        return Result::OK;
-    });
+    //KM_INFOTRACE("iouring enter, this=" << this);
     unsigned flags = IORING_ENTER_GETEVENTS;
     int ret = __io_uring_enter(uring_fd_, 1, 1, flags, nullptr, 0);
+    //KM_INFOTRACE("iouring leave, ret=" << ret << ", this=" << this);
     if (ret >= 0) {
         complete_ops();
     }
@@ -524,3 +553,5 @@ IOPoll* createIOUring() {
 }
 
 KEV_NS_END
+
+#endif // KUMA_HAS_IOURING
