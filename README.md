@@ -1,5 +1,5 @@
 # libkev
-libkev is a cross-platform C++(C++14) event loop from project [kuma](https://github.com/Jamol/kuma), the supported platforms include windows/mac/iOS/linux/android
+libkev is a cross-platform C++(C++14) event loop that supports epoll/iocp/kqueue/io_uring/poll/select on platform Linux/Windows/mac/iOS/Android.
 
 ## build
 CMake is the supported build system
