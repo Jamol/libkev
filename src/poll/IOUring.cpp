@@ -19,7 +19,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#if defined(KUMA_HAS_IOURING)
+#if defined(KEV_HAS_IOURING)
 
 #include "IOPoll.h"
 #include "EventNotifier.h"
@@ -135,8 +135,8 @@ private:
 
     EventNotifier notifier_;
     OpData notifier_op_data_;
-    bool timeout_scheduled_ = false;
-    OpData timer_op_data_;
+    //bool timeout_scheduled_ = false;
+    //OpData timer_op_data_;
     unsigned int to_submit_ = 0;
 };
 
@@ -176,13 +176,13 @@ IOUring::IOUring()
         auto * notifier = static_cast<EventNotifier*>(ctx);
         notifier->onEvent(kEventRead);
     };
-    timer_op_data_.fd = TIMEOUT_FD_VAL;
+    /*timer_op_data_.fd = TIMEOUT_FD_VAL;
     timer_op_data_.context = this;
     timer_op_data_.handler = [] (SOCKET_FD fd, int res, void* ctx) {
         //KM_INFOTRACE("IOUring timer callback, fd=" << fd);
         auto * _this = static_cast<IOUring*>(ctx);
         _this->timeout_scheduled_ = false;
-    };
+    };*/
 }
 
 IOUring::~IOUring()
@@ -292,7 +292,7 @@ bool IOUring::init()
             return Result::OK;
         });
     }
-    timeout_scheduled_ = false;
+    //timeout_scheduled_ = false;
     return true;
 }
 
@@ -562,8 +562,20 @@ static uint8_t to_ioring_opcode(OpCode op)
 IOPoll* createIOUring() {
     struct utsname utsn;
     if (::uname(&utsn) == 0) {
-        KM_INFOTRACE("kernal version: " << utsn.release);
-        if (strcmp(utsn.release, "5.13.0") > 0) {
+        //KM_INFOTRACE("kernal version: " << utsn.release);
+        int major = -1, minor = -1;
+        for_each_token(utsn.release, '.', [&](const std::string &s) {
+            if (major == -1) {
+                major = std::stoi(s);
+                return true;
+            }
+            if (minor == -1) {
+                minor = std::stoi(s);
+                return false;
+            }
+            return false;
+        });
+        if (major > 5 || (major == 5 && minor >= 13)) {
             return new IOUring();
         }
     }
@@ -572,4 +584,4 @@ IOPoll* createIOUring() {
 
 KEV_NS_END
 
-#endif // KUMA_HAS_IOURING
+#endif // KEV_HAS_IOURING

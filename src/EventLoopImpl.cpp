@@ -572,7 +572,7 @@ IOPoll* createIOPoll(PollType poll_type)
             return createDefaultIOPoll();
 #endif
         case PollType::IORING: {
-#if defined(KUMA_HAS_IOURING)
+#if defined(KEV_HAS_IOURING)
             auto *poller = createIOUring();
             if (poller) {
                 return poller;

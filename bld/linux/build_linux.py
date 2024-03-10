@@ -21,6 +21,10 @@ def build_one_arch(workingPath, buildtype, arch, option):
     if not os.path.exists(buildPath):
         os.makedirs(buildPath)
     os.chdir(buildPath)
+    kernel_ver = platform.release()
+    ver_list = kernel_ver.split('.')
+    ver_major = int(ver_list[0])
+    ver_minor = int(ver_list[1])
     hostArch = platform.machine()
     if hostArch == 'aarch64':
         hostArch = 'arm64'
@@ -62,7 +66,9 @@ def build_one_arch(workingPath, buildtype, arch, option):
     if option['rebuild'] and os.path.exists('Makefile'):
         run_and_check_error('make clean')
     if option['memcheck']:
-        cmakeConfig.append('-DENABLE_ASAN=1')
+        cmakeConfig.append('-DKEV_ENABLE_ASAN=1')
+    if ver_major > 5 or (ver_major == 5 and ver_minor >= 13):
+        cmakeConfig.append('-DKEV_HAS_IOURING=1')
     run_and_check_error('cmake ../../../../.. ' + ' '.join(cmakeConfig))
     run_and_check_error('make')
 
