@@ -366,8 +366,7 @@ Result IOUring::submitOp(SOCKET_FD fd, const Op &op)
         case OpCode::ACCEPT:
             sqe->opcode = SYS_IORING_OP_ACCEPT;
             sqe->addr = (__u64)op.addr;
-            //sqe->addr2 = (__u64)op.addr2;
-            sqe->off = (__u64)op.addr2; // should be addr2, but it is not defined
+            sqe->addr2 = (__u64)op.addr2;
             sqe->accept_flags = op.flags;
             sqe->user_data = (__u64)op.data;
             if (op.data) op.data->fd = fd;
@@ -375,7 +374,7 @@ Result IOUring::submitOp(SOCKET_FD fd, const Op &op)
         case OpCode::READV:
         case OpCode::WRITEV:
             sqe->opcode = to_ioring_opcode(op.oc);
-            sqe->addr = (unsigned long)op.iovs;
+            sqe->addr = (__u64)op.iovs;
             sqe->len = op.count;
             sqe->user_data = (__u64)op.data;
             if (op.data) op.data->fd = fd;
@@ -385,7 +384,7 @@ Result IOUring::submitOp(SOCKET_FD fd, const Op &op)
         case OpCode::SENDMSG:
         case OpCode::RECVMSG:
             sqe->opcode = to_ioring_opcode(op.oc);
-            sqe->addr = (unsigned long)op.buf;
+            sqe->addr = (__u64)op.buf;
             sqe->len = op.buflen;
             sqe->msg_flags = op.flags;
             sqe->user_data = (__u64)op.data;
@@ -394,8 +393,8 @@ Result IOUring::submitOp(SOCKET_FD fd, const Op &op)
         case OpCode::CANCEL:
             sqe->opcode = SYS_IORING_OP_ASYNC_CANCEL;
             sqe->user_data = 0;
-            if (op.addr) {
-                sqe->addr = (__u64)op.addr;
+            if (op.buf) {
+                sqe->addr = (__u64)op.buf;
             } else {
                 sqe->cancel_flags = IORING_ASYNC_CANCEL_FD | IORING_ASYNC_CANCEL_ALL;
             }
