@@ -99,6 +99,8 @@ private:
     void complete_ops(struct io_uring_cqe *cqes, int cnt);
     template<typename SQE_OP>
     Result submit_op(SQE_OP &&sqe_op);
+    int submit_sqes();
+    int submit_and_wait(uint32_t wait_ms, uint32_t wait_nr);
 
 private:
     int             uring_fd_;
@@ -214,7 +216,7 @@ bool IOUring::init()
     memset(&p, 0, sizeof(p));
     uring_fd_ = __io_uring_setup(QUEUE_DEPTH, &p);
     if(uring_fd_ < 0) {
-        KM_ERRTRACE("IOUring::init, io_uring_setup failed： " << uring_fd_);
+        KM_ERRTRACE("IOUring::init, io_uring_setup failed: " << uring_fd_);
         return false;
     }
     int sqring_sz = p.sq_off.array + p.sq_entries * sizeof(unsigned);
@@ -452,7 +454,14 @@ Result IOUring::submit_op(SQE_OP &&sqe_op)
     tail = *sq_ring_.tail;
     head = io_uring_smp_load_acquire(sq_ring_.head);
     if (tail - head >= *sq_ring_.ring_entries) {
-        return Result::AGAIN;
+        if (submit_sqes() < 0) {
+            return Result::POLL_ERROR;
+        }
+        head = io_uring_smp_load_acquire(sq_ring_.head);
+        if (tail - head >= *sq_ring_.ring_entries) {
+            //flags |= IORING_ENTER_SQ_WAIT; ??
+            return Result::AGAIN;
+        }
         /*complete_ops();
         head = io_uring_smp_load_acquire(sq_ring_.head);
         if (tail - head >= *sq_ring_.ring_entries) {
@@ -479,15 +488,18 @@ Result IOUring::submit_op(SQE_OP &&sqe_op)
     return ret;
 }
 
-Result IOUring::wait(uint32_t wait_ms)
+int IOUring::submit_and_wait(uint32_t wait_ms, uint32_t wait_nr)
 {
-    unsigned flags = IORING_ENTER_GETEVENTS;
+    unsigned flags = 0;
     size_t argsz = 0;
     void* parg = nullptr;
+    if (wait_nr > 0) {
+        flags |= IORING_ENTER_GETEVENTS;
+    }
 #if 0
     if (!timeout_scheduled_) {
         struct timespec *pts = nullptr;
-        if(wait_ms != -1) {
+        if(wait_ms != -1 && (wait_nr || wait_ms)) {
             to_val_.tv_sec = wait_ms/1000;
             to_val_.tv_nsec = (wait_ms - to_val_.tv_sec*1000)*1000*1000;
             pts = &to_val_;
@@ -508,7 +520,7 @@ Result IOUring::wait(uint32_t wait_ms)
 #else
     struct timespec tso;
     struct io_uring_getevents_arg arg{0, 0, 0, 0};
-    if(wait_ms != -1) {
+    if(wait_ms != -1 && (wait_nr || wait_ms)) {
         tso.tv_sec = wait_ms/1000;
         tso.tv_nsec = (wait_ms - to_val_.tv_sec*1000)*1000*1000;
         arg.ts = (__u64)&tso;
@@ -519,7 +531,21 @@ Result IOUring::wait(uint32_t wait_ms)
 #endif
     unsigned int to_submit = to_submit_;
     to_submit_ = 0;
-    int ret = __io_uring_enter(uring_fd_, to_submit, 1, flags, parg, argsz);
+    int ret;
+    do {
+        ret = __io_uring_enter(uring_fd_, to_submit, wait_nr, flags, parg, argsz);
+    } while (ret == EINTR);
+    return ret;
+}
+
+int IOUring::submit_sqes()
+{
+    return submit_and_wait(0, 0);
+}
+
+Result IOUring::wait(uint32_t wait_ms)
+{
+    int ret = submit_and_wait(wait_ms, 1);
     if (ret >= 0) {
         complete_ops();
     }
