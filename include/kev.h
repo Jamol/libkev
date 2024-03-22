@@ -279,7 +279,7 @@ private:
 };
 
 
-using LogCallback = std::function<void(int level, std::string &&msg)>;
+using LogCallback = void(*)(int level, std::string &&msg);
 void setLogCallback(LogCallback cb);
 
 KEV_NS_END

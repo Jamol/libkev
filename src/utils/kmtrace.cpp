@@ -165,7 +165,9 @@ void traceWrite(int level, std::string &&msg)
 
 void setTraceFunc(TraceFunc func)
 {
-    s_traceFunc = std::move(func);
+    if (func != s_traceFunc) {
+        s_traceFunc = std::move(func);
+    }
 }
 
 void setTraceLevel(int level)

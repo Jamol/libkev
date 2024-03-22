@@ -255,7 +255,7 @@ Timer::Impl* Timer::pimpl()
 
 void setLogCallback(LogCallback cb)
 {
-    setTraceFunc(cb);
+    setTraceFunc(std::move(cb));
 }
 
 KEV_NS_END
