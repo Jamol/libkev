@@ -61,7 +61,7 @@ const int TRACE_LEVEL_MAX = TRACE_LEVEL_VERBOS;
 void traceWrite(int level, const std::string &msg);
 void traceWrite(int level, std::string &&msg);
 
-using TraceFunc = std::function<void(int level, std::string &&msg)>;
+using TraceFunc = void(*)(int level, std::string &&msg);
 void setTraceFunc(TraceFunc func);
 void setTraceLevel(int level);
 int getTraceLevel();
