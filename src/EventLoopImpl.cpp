@@ -407,7 +407,7 @@ void EventLoop::Token::Impl::eventLoop(const EventLoopPtr &loop)
     loop_ = loop;
 }
 
-EventLoopPtr EventLoop::Token::Impl::eventLoop()
+EventLoopPtr EventLoop::Token::Impl::eventLoop() const
 {
     return loop_.lock();
 }
@@ -486,7 +486,7 @@ void EventLoop::Token::Impl::clearAllTasks()
     }
 }
 
-bool EventLoop::Token::Impl::expired()
+bool EventLoop::Token::Impl::expired() const
 {
     return loop_.expired() || (observed && obs_token_.expired());
 }

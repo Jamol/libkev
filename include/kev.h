@@ -54,7 +54,7 @@ public:
         void reset();
         
         class Impl;
-        Impl* pimpl();
+        Impl* pimpl() const;
         
     private:
         Impl* pimpl_;
@@ -101,7 +101,7 @@ public:
      * then token is no need, otherwise the caller should cancel the tasks queued in loop
      * before the resources are unavailable
      */
-    Token createToken();
+    Token createToken() const;
     
     /* run the task in loop thread and wait untill task is executed.
      * the task will be executed at once if called on loop thread
@@ -228,7 +228,7 @@ public:
     
     class Impl;
     using ImplPtr = std::shared_ptr<Impl>;
-    ImplPtr pimpl();
+    ImplPtr pimpl() const;
 
 private:
     ImplPtr pimpl_;
@@ -272,7 +272,7 @@ public:
     void cancel();
     
     class Impl;
-    Impl* pimpl();
+    Impl* pimpl() const;
     
 private:
     Impl* pimpl_;

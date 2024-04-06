@@ -64,7 +64,7 @@ bool EventLoop::init()
     return pimpl_->init();
 }
 
-EventLoop::Token EventLoop::createToken()
+EventLoop::Token EventLoop::createToken() const
 {
     Token t;
     if (!t.pimpl_) { // lazy initialize token pimpl
@@ -124,7 +124,7 @@ void EventLoop::reset()
     pimpl_->reset();
 }
 
-EventLoop::ImplPtr EventLoop::pimpl()
+EventLoop::ImplPtr EventLoop::pimpl() const
 {
     return pimpl_;
 }
@@ -201,7 +201,7 @@ void EventLoop::Token::reset()
     }
 }
 
-EventLoop::Token::Impl* EventLoop::Token::pimpl()
+EventLoop::Token::Impl* EventLoop::Token::pimpl() const
 {
     return pimpl_;
 }
@@ -248,7 +248,7 @@ void Timer::cancel()
     pimpl_->cancel();
 }
 
-Timer::Impl* Timer::pimpl()
+Timer::Impl* Timer::pimpl() const
 {
     return pimpl_;
 }

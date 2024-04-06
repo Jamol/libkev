@@ -168,7 +168,7 @@ public:
     Result updateFd(SOCKET_FD fd, uint32_t events);
     Result unregisterFd(SOCKET_FD fd, bool close_fd);
     Result submitOp(SOCKET_FD fd, const Op &op);
-    TimerManager::Ptr getTimerMgr() { return timer_mgr_; }
+    TimerManager::Ptr getTimerMgr() const { return timer_mgr_; }
     
     PollType getPollType() const;
     bool isPollLT() const; // level trigger
@@ -286,7 +286,7 @@ public:
     ~Impl();
     
     void eventLoop(const EventLoopPtr &loop);
-    EventLoopPtr eventLoop();
+    EventLoopPtr eventLoop() const;
     
     void appendTaskNode(TokenTaskSlotPtr &node);
     void clearInactiveTasks();
@@ -294,7 +294,7 @@ public:
     void clearInactiveDelayedTasks();
     void clearAllTasks();
     
-    bool expired();
+    bool expired() const;
     void reset();
     
 protected:
