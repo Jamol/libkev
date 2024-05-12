@@ -61,6 +61,8 @@ KEV_NS_BEGIN
 #define SYS_IORING_OP_SEND          IORING_OP_SEND
 #define SYS_IORING_OP_RECV          IORING_OP_RECV
 #define SYS_IORING_OP_SHUTDOWN      IORING_OP_SHUTDOWN 
+#define SYS_IORING_OP_POLL_ADD      IORING_OP_POLL_ADD
+#define SYS_IORING_OP_POLL_REMOVE   IORING_OP_POLL_REMOVE
 
 #if !defined(IORING_ASYNC_CANCEL_ALL)
 # define IORING_ASYNC_CANCEL_ALL	(1U << 0)
@@ -286,7 +288,7 @@ bool IOUring::init()
         notifier_op_data_.fd = efd;
         //__io_uring_register(uring_fd_, IORING_REGISTER_EVENTFD, &efd, 1);
         submit_op([&](io_uring_sqe *sqe) {
-            sqe->opcode = IORING_OP_POLL_ADD;
+            sqe->opcode = SYS_IORING_OP_POLL_ADD;
             sqe->fd = efd;
             sqe->user_data = (__u64)&notifier_op_data_;
             sqe->poll_events = POLLIN;
@@ -389,6 +391,16 @@ Result IOUring::submitOp(SOCKET_FD fd, const Op &op)
             sqe->msg_flags = op.flags;
             sqe->user_data = (__u64)op.data;
             if (op.data) op.data->fd = fd;
+            return Result::OK;
+        case OpCode::POLL_ADD:
+            sqe->opcode = SYS_IORING_OP_POLL_ADD;
+            sqe->user_data = (__u64)op.data;
+            sqe->poll_events = op.flags;
+            sqe->len = op.buflen;
+            return Result::OK;
+        case OpCode::POLL_REMOVE:
+            sqe->opcode = SYS_IORING_OP_POLL_REMOVE;
+            sqe->addr = (__u64)op.data;
             return Result::OK;
         case OpCode::CANCEL:
             sqe->opcode = SYS_IORING_OP_ASYNC_CANCEL;
@@ -576,6 +588,10 @@ static uint8_t to_ioring_opcode(OpCode op)
         return SYS_IORING_OP_SENDMSG;
     case OpCode::RECVMSG:
         return SYS_IORING_OP_RECVMSG;
+    case OpCode::POLL_ADD:
+        return SYS_IORING_OP_POLL_ADD;
+    case OpCode::POLL_REMOVE:
+        return SYS_IORING_OP_POLL_REMOVE;
     case OpCode::CANCEL:
         return SYS_IORING_OP_ASYNC_CANCEL;
     

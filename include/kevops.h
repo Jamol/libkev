@@ -45,6 +45,8 @@ enum class OpCode {
     WRITEV,
     SENDMSG,
     RECVMSG,
+    POLL_ADD,
+    POLL_REMOVE,
     CANCEL,
 };
 
