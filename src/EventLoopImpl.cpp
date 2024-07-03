@@ -49,6 +49,7 @@ EventLoop::Impl::~Impl()
     while (obs_queue_.dequeue(cb)) {
         cb(LoopActivity::EXIT);
     }
+    timer_mgr_->shutdown();
     if(poll_) {
         delete poll_;
         poll_ = nullptr;
@@ -62,6 +63,7 @@ bool EventLoop::Impl::init()
     }
     stop_loop_ = false;
     thread_id_ = std::this_thread::get_id();
+    timer_mgr_->setRunningThreadId(thread_id_);
     return true;
 }
 

@@ -82,20 +82,7 @@ TimerManager::TimerManager(EventLoop::Impl* loop)
 
 TimerManager::~TimerManager()
 {
-    std::vector<TimerCallback> timer_cbs; // hold timer cb temporarily
-    std::lock_guard<std::mutex> g(mutex_);
-    for (int i=0; i<TV_COUNT && timer_count_ > 0; ++i)
-    {
-        for (int j=0; j<TIMER_VECTOR_SIZE && timer_count_ > 0; ++j)
-        {
-            while(!list_empty(&tv_[i][j])) {
-                auto *timer_node = tv_[i][j].next_;
-                list_remove_node(timer_node);
-                timer_cbs.emplace_back(timer_node->cancel());
-                --timer_count_;
-            }
-        }
-    }
+    // clear();
 }
 
 bool TimerManager::scheduleTimer(TimerNode *timer_node, uint32_t delay_ms, Timer::Mode mode, TimerCallback cb)
@@ -104,12 +91,14 @@ bool TimerManager::scheduleTimer(TimerNode *timer_node, uint32_t delay_ms, Timer
         return true;
     }
     TICK_COUNT_TYPE now_tick = get_tick_count_ms();
-    bool need_notify = false;
     bool ret = false;
     {
         std::unique_lock<std::mutex> ul(mutex_);
+        if (shutdown_) {
+            return false;
+        }
         timer_node->cancelled_ = false;
-        /*if (timer_node == running_node_ && !loop_->inSameThread()) {
+        /*if (timer_node == running_node_ && !inSameThread()) {
             // timer is running, user may reschedule the timer in callback
             if(reschedule_node_ == timer_node) {
                 reschedule_node_ = nullptr;
@@ -132,6 +121,9 @@ bool TimerManager::scheduleTimer(TimerNode *timer_node, uint32_t delay_ms, Timer
         if(reschedule_node_ == timer_node) {
             reschedule_node_ = nullptr;
         }
+        if(cancelling_node_ == timer_node) {
+            cancelling_node_ = nullptr;
+        }
         timer_node->start_tick_ = now_tick;
         timer_node->delay_ms_ = delay_ms;
         timer_node->repeating_ = mode == Timer::Mode::REPEATING;
@@ -141,11 +133,10 @@ bool TimerManager::scheduleTimer(TimerNode *timer_node, uint32_t delay_ms, Timer
         long diff = long(now_tick - last_tick_);
         if(last_remain_ms_ == -1 || (diff >= 0 && delay_ms < last_remain_ms_ - diff)) {
             // need update poll wait time
-            need_notify = !loop_->inSameThread();
+            if (!inSameThread()) {
+                loop_->wakeup();
+            }
         }
-    }
-    if(need_notify) {
-        loop_->wakeup();
     }
     return ret;
 }
@@ -160,7 +151,7 @@ void TimerManager::cancelTimer(TimerNode *timer_node)
     TimerCallback timer_cb; // hold timer cb temporarily
     {
         std::unique_lock<std::mutex> ul(mutex_);
-        if (running_node_ == timer_node && !loop_->inSameThread()) {
+        if (running_node_ == timer_node && !inSameThread()) {
             if(reschedule_node_ == timer_node) {
                 reschedule_node_ = nullptr;
             }
@@ -178,8 +169,58 @@ void TimerManager::cancelTimer(TimerNode *timer_node)
         if(reschedule_node_ == timer_node) {
             reschedule_node_ = nullptr;
         }
+        if(cancelling_node_ == timer_node) {
+            cancelling_node_ = nullptr;
+        }
         timer_cb = timer_node->cancel();
     }
+}
+
+void TimerManager::clear()
+{
+    std::vector<TimerCallback> timer_cbs; // hold timer cb temporarily
+    std::unique_lock<std::mutex> ul(mutex_);
+    for (int i=0; i<TV_COUNT && timer_count_ > 0; ++i)
+    {
+        for (int j=0; j<TIMER_VECTOR_SIZE && timer_count_ > 0; ++j)
+        {
+            while(!list_empty(&tv_[i][j])) {
+                auto *timer_node = tv_[i][j].next_;
+                cancelling_node_ = timer_node;
+                if (running_node_ == timer_node && !inSameThread()) {
+                    if(reschedule_node_ == timer_node) {
+                        reschedule_node_ = nullptr;
+                    }
+                    ul.unlock();
+                    running_mutex_.lock();
+                    if(running_node_ == timer_node) {
+                        running_node_ = nullptr;
+                    }
+                    running_mutex_.unlock();
+                    ul.lock();
+                }
+                if(reschedule_node_ == timer_node) {
+                    reschedule_node_ = nullptr;
+                }
+                if(cancelling_node_) {
+                    if(isTimerPending(cancelling_node_)) {
+                        removeTimer(cancelling_node_);
+                    }
+                    timer_cbs.emplace_back(cancelling_node_->cancel());
+                    cancelling_node_ = nullptr;
+                }
+            }
+        }
+    }
+}
+
+void TimerManager::shutdown()
+{
+    {
+        std::lock_guard<std::mutex> g(mutex_);
+        shutdown_ = true;
+    }
+    clear();
 }
 
 void TimerManager::list_init_head(TimerNode* head)

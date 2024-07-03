@@ -28,6 +28,7 @@
 #include <memory>
 #include <mutex>
 #include <atomic>
+#include <thread>
 
 #ifndef TICK_COUNT_TYPE
 # define TICK_COUNT_TYPE    uint64_t
@@ -54,6 +55,12 @@ public:
     void cancelTimer(TimerNode *timer);
 
     int checkExpire(unsigned long* remain_ms = nullptr);
+
+    void setRunningThreadId(std::thread::id tid) { running_tid_ = std::move(tid); }
+    bool inSameThread() const { return std::this_thread::get_id() == running_tid_; }
+
+    void clear();
+    void shutdown();
 
 public:
     class TimerNode
@@ -134,8 +141,11 @@ private:
     EventLoop::Impl* loop_;
     std::mutex mutex_;
     std::mutex running_mutex_;
+    std::thread::id running_tid_;
     TimerNode* running_node_{ nullptr };
     TimerNode* reschedule_node_{ nullptr };
+    TimerNode* cancelling_node_{ nullptr };
+    bool shutdown_{ false };
     unsigned long last_remain_ms_ = -1;
     TICK_COUNT_TYPE last_tick_{ 0 };
     uint32_t timer_count_{ 0 };
