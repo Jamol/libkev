@@ -184,7 +184,8 @@ void TimerManager::clear()
     {
         for (int j=0; j<TIMER_VECTOR_SIZE && timer_count_ > 0; ++j)
         {
-            while(!list_empty(&tv_[i][j])) {
+            while(!list_empty(&tv_[i][j]))
+            {
                 auto *timer_node = tv_[i][j].next_;
                 cancelling_node_ = timer_node;
                 if (running_node_ == timer_node && !inSameThread()) {
@@ -468,11 +469,16 @@ int TimerManager::checkExpire(unsigned long* remain_ms)
         running_node_ = reschedule_node_;
         list_remove_node(reschedule_node_);
         --timer_count_;
+        TimerCallback timer_cb;
+        timer_cb.swap(reschedule_node_->cb_);
         mutex_.unlock(); // sync nodes in tmp_list with cancel_timer.
 
         running_mutex_.lock();
         if(running_node_) {
-            (*running_node_)();
+            //(*running_node_)();
+            if (!running_node_->cancelled_ && timer_cb) {
+                timer_cb();
+            }
             running_node_ = nullptr;
             ++count;
         }
@@ -482,11 +488,19 @@ int TimerManager::checkExpire(unsigned long* remain_ms)
         if(reschedule_node_) {
             if (reschedule_node_->repeating_ && !reschedule_node_->cancelled_) {
                 reschedule_node_->start_tick_ = now_tick;
+                timer_cb.swap(reschedule_node_->cb_);
                 addTimer(reschedule_node_, FROM_RESCHEDULE);
             } else {
-                timer_cbs.emplace_back(reschedule_node_->cancel());
+                //timer_cbs.emplace_back(reschedule_node_->cancel());
+                if (timer_cb) {
+                    timer_cbs.emplace_back(std::move(timer_cb));
+                }
             }
             reschedule_node_ = nullptr;
+        } else {
+            if (timer_cb) {
+                timer_cbs.emplace_back(std::move(timer_cb));
+            }
         }
     }
 
