@@ -59,6 +59,16 @@ int main(int argc, const char * argv[])
 
         run_loop.stop();
     });
+
+    std::string test_str;
+    auto timer3 = std::make_shared<Timer>(&run_loop);
+    timer3->schedule(600, Timer::Mode::REPEATING, [=]() mutable {
+        printf("onTimer, timer3 cancelling\n");
+        timer3->cancel();
+        test_str = "timer3 was cancelled from callback";
+        printf("%s\n", test_str.c_str());
+    });
+    timer3.reset();
     
     auto delayed_token = run_loop.createToken();
     run_loop.postDelayed(1000,[] {

@@ -52,10 +52,7 @@ public:
     virtual ~TaskSlot() {}
     virtual void operator() ()
     {
-        if (task) {
-            task();
-            clearTask();
-        }
+        if (task) std::exchange(task, nullptr)();
     }
     void clearTask()
     {
