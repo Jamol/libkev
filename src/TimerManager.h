@@ -102,6 +102,8 @@ public:
         //       and will be destroyed when TimerCallback is reset
         // NOTE: must not destruct the cb_ under lock of TimerManager::mutex_,
         //       since its destruction may result to another timer to be cancelled
+        // NOTE: the callback will be delayed destroyed after its execution if
+        //       timer cancel is called from callback
         TimerCallback       cb_;
         
     protected:
