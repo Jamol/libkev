@@ -22,7 +22,7 @@ namespace kev {
 
 const size_t kPaddingSize = 128;
 ///
-// enqueue on a thread and dequene on another thread
+// enqueue on a thread and dequene form another thread
 ///
 template <class E>
 class KMQueue

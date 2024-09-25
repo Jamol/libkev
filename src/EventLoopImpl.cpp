@@ -49,6 +49,8 @@ EventLoop::Impl::~Impl()
     while (obs_queue_.dequeue(cb)) {
         cb(LoopActivity::EXIT);
     }
+    // clear all pending timers explicitly before weak pointers of
+    // timer_mgr are expired
     timer_mgr_->shutdown();
     if(poll_) {
         delete poll_;
@@ -259,7 +261,7 @@ void EventLoop::Impl::stop()
     wakeup();
 }
 
-Result EventLoop::Impl::appendTask(Task task, EventLoopToken *token, const char *debugStr)
+Result EventLoop::Impl::appendTask(Task task, EventLoopToken *token, const char *debug_str)
 {
     if (token && token->eventLoop().get() != this) {
         return Result::INVALID_PARAM;
@@ -267,7 +269,7 @@ Result EventLoop::Impl::appendTask(Task task, EventLoopToken *token, const char 
     if (stop_loop_) {
         return Result::INVALID_STATE;
     }
-    std::string dstr{debugStr ? debugStr : ""};
+    std::string dstr{debug_str ? debug_str : ""};
     TaskSlotPtr ptr;
     if (token) {
         auto p = std::make_shared<TokenTaskSlot>(std::move(task), std::move(dstr));
@@ -288,7 +290,7 @@ Result EventLoop::Impl::appendTask(Task task, EventLoopToken *token, const char 
     return Result::OK;
 }
 
-Result EventLoop::Impl::appendDelayedTask(uint32_t delay_ms, Task task, EventLoopToken *token, const char *debugStr)
+Result EventLoop::Impl::appendDelayedTask(uint32_t delay_ms, Task task, EventLoopToken *token, const char *debug_str)
 {
     if (token && token->eventLoop().get() != this) {
         return Result::INVALID_PARAM;
@@ -296,7 +298,7 @@ Result EventLoop::Impl::appendDelayedTask(uint32_t delay_ms, Task task, EventLoo
     if (stop_loop_) {
         return Result::INVALID_STATE;
     }
-    std::string dstr{debugStr ? debugStr : ""};
+    std::string dstr{debug_str ? debug_str : ""};
     auto ptr = std::make_shared<DelayedTaskSlot>(this, std::move(task), std::move(dstr));
     if (token) {
         token->appendDelayedTaskNode(ptr);
@@ -329,7 +331,7 @@ private:
     Callable c_;
     bool cleared_ = false;
 };
-Result EventLoop::Impl::sync(Task task, EventLoopToken *token, const char *debugStr)
+Result EventLoop::Impl::sync(Task task, EventLoopToken *token, const char *debug_str)
 {
     if(inSameThread()) {
         task();
@@ -349,7 +351,7 @@ Result EventLoop::Impl::sync(Task task, EventLoopToken *token, const char *debug
             task();
             executed = true;
         };
-        auto ret = post(task_sync, token, debugStr);
+        auto ret = post(task_sync, token, debug_str);
         if (ret != Result::OK) {
             return ret;
         }
@@ -359,24 +361,24 @@ Result EventLoop::Impl::sync(Task task, EventLoopToken *token, const char *debug
     }
 }
 
-Result EventLoop::Impl::async(Task task, EventLoopToken *token, const char *debugStr)
+Result EventLoop::Impl::async(Task task, EventLoopToken *token, const char *debug_str)
 {
     if(inSameThread()) {
         task();
         return Result::OK;
     } else {
-        return post(std::move(task), token, debugStr);
+        return post(std::move(task), token, debug_str);
     }
 }
 
-Result EventLoop::Impl::post(Task task, EventLoopToken *token, const char *debugStr)
+Result EventLoop::Impl::post(Task task, EventLoopToken *token, const char *debug_str)
 {
-    return appendTask(std::move(task), token, debugStr);
+    return appendTask(std::move(task), token, debug_str);
 }
 
-Result EventLoop::Impl::postDelayed(uint32_t delay_ms, Task task, EventLoopToken *token, const char *debugStr)
+Result EventLoop::Impl::postDelayed(uint32_t delay_ms, Task task, EventLoopToken *token, const char *debug_str)
 {
-    return  appendDelayedTask(delay_ms, std::move(task), token, debugStr);
+    return  appendDelayedTask(delay_ms, std::move(task), token, debug_str);
 }
 
 void EventLoop::Impl::wakeup()
@@ -386,8 +388,8 @@ void EventLoop::Impl::wakeup()
 
 /////////////////////////////////////////////////////////////////
 // DelayedTaskSlot
-DelayedTaskSlot::DelayedTaskSlot(EventLoop::Impl *loop, EventLoop::Task &&t, std::string debugStr)
-    : TaskSlot(std::move(t), std::move(debugStr)), timer(loop->getTimerMgr())
+DelayedTaskSlot::DelayedTaskSlot(EventLoop::Impl *loop, EventLoop::Task &&t, std::string debug_str)
+    : TaskSlot(std::move(t), std::move(debug_str)), timer(loop->getTimerMgr())
 {
     
 }

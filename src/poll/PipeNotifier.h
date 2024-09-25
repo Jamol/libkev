@@ -49,6 +49,10 @@ public:
             ::fcntl(fds_[READ_FD], F_SETFD, ::fcntl(fds_[READ_FD], F_GETFD) | FD_CLOEXEC);
             ::fcntl(fds_[WRITE_FD], F_SETFD, ::fcntl(fds_[WRITE_FD], F_GETFD) | FD_CLOEXEC);
 #endif
+#ifdef KUMA_OS_MAC
+            ::fcntl(fds_[READ_FD], F_SETNOSIGPIPE, 1);
+            ::fcntl(fds_[WRITE_FD], F_SETNOSIGPIPE, 1);
+#endif
             return true;
         }
     }
@@ -70,7 +74,7 @@ public:
     }
     
     Result onEvent(KMEvent ev) override {
-        char buf[1024];
+        char buf[64];
         ssize_t ret = 0;
         do {
             ret = ::read(fds_[READ_FD], buf, sizeof(buf));

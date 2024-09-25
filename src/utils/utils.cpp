@@ -880,37 +880,32 @@ void kev_init()
     WSADATA wsaData;
     WORD wVersionRequested = MAKEWORD(1, 1);
     int nResult = WSAStartup(wVersionRequested, &wsaData);
-    if (nResult != 0)
-    {
+    if (nResult != 0) {
         return;
     }
 
     auto sock = socket(AF_INET, SOCK_STREAM, 0);
     GUID guid = WSAID_CONNECTEX;
     DWORD bytes = 0;
-    if (::WSAIoctl(sock, SIO_GET_EXTENSION_FUNCTION_POINTER, &guid, sizeof(guid), &connect_ex, sizeof(connect_ex), &bytes, 0, 0) != 0)
-    {
+    if (::WSAIoctl(sock, SIO_GET_EXTENSION_FUNCTION_POINTER, &guid, sizeof(guid), &connect_ex, sizeof(connect_ex), &bytes, 0, 0) != 0) {
         connect_ex = nullptr;
     }
 
     guid = WSAID_ACCEPTEX;
     bytes = 0;
-    if (::WSAIoctl(sock, SIO_GET_EXTENSION_FUNCTION_POINTER, &guid, sizeof(guid), &accept_ex, sizeof(accept_ex), &bytes, 0, 0) != 0)
-    {
+    if (::WSAIoctl(sock, SIO_GET_EXTENSION_FUNCTION_POINTER, &guid, sizeof(guid), &accept_ex, sizeof(accept_ex), &bytes, 0, 0) != 0) {
         accept_ex = nullptr;
     }
 
     guid = WSAID_WSASENDMSG;
     bytes = 0;
-    if (::WSAIoctl(sock, SIO_GET_EXTENSION_FUNCTION_POINTER, &guid, sizeof(guid), &wsa_sendmsg, sizeof(wsa_sendmsg), &bytes, 0, 0) != 0)
-    {
+    if (::WSAIoctl(sock, SIO_GET_EXTENSION_FUNCTION_POINTER, &guid, sizeof(guid), &wsa_sendmsg, sizeof(wsa_sendmsg), &bytes, 0, 0) != 0) {
         wsa_sendmsg = nullptr;
     }
 
     guid = WSAID_WSARECVMSG;
     bytes = 0;
-    if (::WSAIoctl(sock, SIO_GET_EXTENSION_FUNCTION_POINTER, &guid, sizeof(guid), &wsa_recvmsg, sizeof(wsa_recvmsg), &bytes, 0, 0) != 0)
-    {
+    if (::WSAIoctl(sock, SIO_GET_EXTENSION_FUNCTION_POINTER, &guid, sizeof(guid), &wsa_recvmsg, sizeof(wsa_recvmsg), &bytes, 0, 0) != 0) {
         wsa_recvmsg = nullptr;
     }
     closesocket(sock);

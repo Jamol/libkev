@@ -112,10 +112,10 @@ public:
      * @return return the result of f()
      */
     template<typename F>
-    auto invoke(F &&f, Token *token=nullptr, const char *debugStr=nullptr)
+    auto invoke(F &&f, Token *token=nullptr, const char *debug_str=nullptr)
     {
         Result err;
-        return invoke(std::forward<F>(f), err, token, debugStr);
+        return invoke(std::forward<F>(f), err, token, debug_str);
     }
 
     /* run the task in loop thread and wait untill task is executed.
@@ -128,7 +128,7 @@ public:
      * @return return the result of f()
      */
     template<typename F, std::enable_if_t<!std::is_void<decltype(std::declval<F>()())>{}, int> = 0>
-    auto invoke(F &&f, Result &err, Token *token=nullptr, const char *debugStr=nullptr)
+    auto invoke(F &&f, Result &err, Token *token=nullptr, const char *debug_str=nullptr)
     {
         static_assert(!std::is_void<decltype(f())>{}, "is void");
         if (inSameThread()) {
@@ -137,18 +137,18 @@ public:
         using ReturnType = decltype(f());
         ReturnType retval;
         auto task_sync = [&] { retval = f(); };
-        err = sync(std::move(task_sync), token, debugStr);
+        err = sync(std::move(task_sync), token, debug_str);
         return retval;
     }
 
     template<typename F, std::enable_if_t<std::is_void<decltype(std::declval<F>()())>{}, int> = 0>
-    void invoke(F &&f, Result &err, Token *token=nullptr, const char *debugStr=nullptr)
+    void invoke(F &&f, Result &err, Token *token=nullptr, const char *debug_str=nullptr)
     {
         static_assert(std::is_void<decltype(f())>{}, "not void");
         if (inSameThread()) {
             return f();
         }
-        err = sync(std::forward<F>(f), token, debugStr);
+        err = sync(std::forward<F>(f), token, debug_str);
     }
 
     /* run the task in loop thread and wait untill task is executed.
@@ -158,12 +158,12 @@ public:
      * @param task the task to be executed. it will always be executed when call success
      */
     template<typename F, std::enable_if_t<!std::is_copy_constructible<F>{}, int> = 0>
-    Result sync(F &&f, Token *token=nullptr, const char *debugStr=nullptr)
+    Result sync(F &&f, Token *token=nullptr, const char *debug_str=nullptr)
     {
         lambda_wrapper<F> wf{std::forward<F>(f)};
-        return sync(Task(std::move(wf)), token, debugStr);
+        return sync(Task(std::move(wf)), token, debug_str);
     }
-    Result sync(Task task, Token *token=nullptr, const char *debugStr=nullptr);
+    Result sync(Task task, Token *token=nullptr, const char *debug_str=nullptr);
     
     /* run the task in loop thread.
      * the task will be executed at once if called on loop thread
@@ -171,15 +171,15 @@ public:
      * @param task the task to be executed. it will always be executed when call success
      * @param token to be used to cancel the task. If token is null, the caller should
      *              make sure the resources referenced by task are valid when task running
-     * @param debugStr debug message of the f, e.g. file name and line where f is generated
+     * @param debug_str debug message of the f, e.g. file name and line where f is generated
      */
     template<typename F, std::enable_if_t<!std::is_copy_constructible<F>{}, int> = 0>
-    Result async(F &&f, Token *token=nullptr, const char *debugStr=nullptr)
+    Result async(F &&f, Token *token=nullptr, const char *debug_str=nullptr)
     {
         lambda_wrapper<F> wf{std::forward<F>(f)};
-        return async(Task(std::move(wf)), token, debugStr);
+        return async(Task(std::move(wf)), token, debug_str);
     }
-    Result async(Task task, Token *token=nullptr, const char *debugStr=nullptr);
+    Result async(Task task, Token *token=nullptr, const char *debug_str=nullptr);
     
     /* run the task in loop thread at next time.
      *
@@ -188,20 +188,20 @@ public:
      *              make sure the resources referenced by task are valid when task running
      */
     template<typename F, std::enable_if_t<!std::is_copy_constructible<F>{}, int> = 0>
-    Result post(F &&f, Token *token=nullptr, const char *debugStr=nullptr)
+    Result post(F &&f, Token *token=nullptr, const char *debug_str=nullptr)
     {
         lambda_wrapper<F> wf{std::forward<F>(f)};
-        return post(Task(std::move(wf)), token, debugStr);
+        return post(Task(std::move(wf)), token, debug_str);
     }
-    Result post(Task task, Token *token=nullptr, const char *debugStr=nullptr);
+    Result post(Task task, Token *token=nullptr, const char *debug_str=nullptr);
     
     template<typename F, std::enable_if_t<!std::is_copy_constructible<F>{}, int> = 0>
-    Result postDelayed(uint32_t delay_ms, F &&f, Token *token=nullptr, const char *debugStr=nullptr)
+    Result postDelayed(uint32_t delay_ms, F &&f, Token *token=nullptr, const char *debug_str=nullptr)
     {
         lambda_wrapper<F> wf{std::forward<F>(f)};
-        return postDelayed(delay_ms, Task(std::move(wf)), token, debugStr);
+        return postDelayed(delay_ms, Task(std::move(wf)), token, debug_str);
     }
-    Result postDelayed(uint32_t delay_ms, Task task, Token *token=nullptr, const char *debugStr=nullptr);
+    Result postDelayed(uint32_t delay_ms, Task task, Token *token=nullptr, const char *debug_str=nullptr);
 
     void wakeup();
     

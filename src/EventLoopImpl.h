@@ -47,8 +47,8 @@ using EventLoopWeakPtr = std::weak_ptr<EventLoop::Impl>;
 class TaskSlot
 {
 public:
-    TaskSlot(EventLoop::Task &&t, std::string debugStr)
-    : task(std::move(t)), debugStr(std::move(debugStr)) {}
+    TaskSlot(EventLoop::Task &&t, std::string debug_str)
+    : task(std::move(t)), debug_str(std::move(debug_str)) {}
     virtual ~TaskSlot() {}
     virtual void operator() ()
     {
@@ -63,7 +63,7 @@ public:
         return bool(task);
     }
     EventLoop::Task task;
-    std::string     debugStr;
+    std::string     debug_str;
 };
 using TaskSlotPtr = std::shared_ptr<TaskSlot>;
 using TaskQueue = std::list<TaskSlotPtr>;
@@ -71,8 +71,8 @@ using TaskQueue = std::list<TaskSlotPtr>;
 class TokenTaskSlot final : public TaskSlot
 {
 public:
-    TokenTaskSlot(EventLoop::Task &&t, std::string debugStr)
-    : TaskSlot(std::move(t), std::move(debugStr)) {}
+    TokenTaskSlot(EventLoop::Task &&t, std::string debug_str)
+    : TaskSlot(std::move(t), std::move(debug_str)) {}
     void operator() () override
     {
         auto expected = State::ACTIVE;
@@ -112,7 +112,7 @@ using TokenTaskQueue = std::list<TokenTaskSlotPtr>;
 class DelayedTaskSlot final : public TaskSlot
 {
 public:
-    DelayedTaskSlot(EventLoop::Impl *loop, EventLoop::Task &&t, std::string debugStr);
+    DelayedTaskSlot(EventLoop::Impl *loop, EventLoop::Task &&t, std::string debug_str);
     void cancel()
     {
         timer.cancel();
@@ -176,18 +176,18 @@ public:
 public:
     bool inSameThread() const { return std::this_thread::get_id() == thread_id_; }
     std::thread::id threadId() const { return thread_id_; }
-    Result appendTask(Task task, EventLoopToken *token, const char *debugStr);
-    Result appendDelayedTask(uint32_t delay_ms, Task task, EventLoopToken *token, const char *debugStr);
+    Result appendTask(Task task, EventLoopToken *token, const char *debug_str);
+    Result appendDelayedTask(uint32_t delay_ms, Task task, EventLoopToken *token, const char *debug_str);
 
     template<typename F>
-    auto invoke(F &&f, EventLoopToken *token=nullptr, const char *debugStr=nullptr)
+    auto invoke(F &&f, EventLoopToken *token=nullptr, const char *debug_str=nullptr)
     {
         Result err;
-        return invoke(std::forward<F>(f), err, token, debugStr);
+        return invoke(std::forward<F>(f), err, token, debug_str);
     }
 
     template<typename F, std::enable_if_t<!std::is_void<decltype(std::declval<F>()())>{}, int> = 0>
-    auto invoke(F &&f, Result &err, EventLoopToken *token=nullptr, const char *debugStr=nullptr)
+    auto invoke(F &&f, Result &err, EventLoopToken *token=nullptr, const char *debug_str=nullptr)
     {
         static_assert(!std::is_same<decltype(f()), void>{}, "is void");
         if (inSameThread()) {
@@ -196,51 +196,51 @@ public:
         using ReturnType = decltype(f());
         ReturnType retval;
         auto task_sync = [&] { retval = f(); };
-        err = sync(std::move(task_sync), token, debugStr);
+        err = sync(std::move(task_sync), token, debug_str);
         return retval;
     }
 
     template<typename F, std::enable_if_t<std::is_void<decltype(std::declval<F>()())>{}, int> = 0>
-    void invoke(F &&f, Result &err, EventLoopToken *token=nullptr, const char *debugStr=nullptr)
+    void invoke(F &&f, Result &err, EventLoopToken *token=nullptr, const char *debug_str=nullptr)
     {
         static_assert(std::is_same<decltype(f()), void>{}, "not void");
         if (inSameThread()) {
             return f();
         }
-        err = sync(std::forward<F>(f), token, debugStr);
+        err = sync(std::forward<F>(f), token, debug_str);
     }
 
     template<typename F, std::enable_if_t<!std::is_copy_constructible<F>{}, int> = 0>
-    Result sync(F &&f, EventLoopToken *token=nullptr, const char *debugStr=nullptr)
+    Result sync(F &&f, EventLoopToken *token=nullptr, const char *debug_str=nullptr)
     {
         lambda_wrapper<F> wf{std::forward<F>(f)};
-        return sync(Task(std::move(wf)), token, debugStr);
+        return sync(Task(std::move(wf)), token, debug_str);
     }
-    Result sync(Task task, EventLoopToken *token=nullptr, const char *debugStr=nullptr);
+    Result sync(Task task, EventLoopToken *token=nullptr, const char *debug_str=nullptr);
 
     template<typename F, std::enable_if_t<!std::is_copy_constructible<F>{}, int> = 0>
-    Result async(F &&f, EventLoopToken *token=nullptr, const char *debugStr=nullptr)
+    Result async(F &&f, EventLoopToken *token=nullptr, const char *debug_str=nullptr)
     {
         lambda_wrapper<F> wf{std::forward<F>(f)};
-        return async(Task(std::move(wf)), token, debugStr);
+        return async(Task(std::move(wf)), token, debug_str);
     }
-    Result async(Task task, EventLoopToken *token=nullptr, const char *debugStr=nullptr);
+    Result async(Task task, EventLoopToken *token=nullptr, const char *debug_str=nullptr);
 
     template<typename F, std::enable_if_t<!std::is_copy_constructible<F>{}, int> = 0>
-    Result post(F &&f, EventLoopToken *token=nullptr, const char *debugStr=nullptr)
+    Result post(F &&f, EventLoopToken *token=nullptr, const char *debug_str=nullptr)
     {
         lambda_wrapper<F> wf{std::forward<F>(f)};
-        return post(Task(std::move(wf)), token, debugStr);
+        return post(Task(std::move(wf)), token, debug_str);
     }
-    Result post(Task task, EventLoopToken *token=nullptr, const char *debugStr=nullptr);
+    Result post(Task task, EventLoopToken *token=nullptr, const char *debug_str=nullptr);
 
     template<typename F, std::enable_if_t<!std::is_copy_constructible<F>{}, int> = 0>
-    Result postDelayed(uint32_t delay_ms, F &&f, EventLoopToken *token=nullptr, const char *debugStr=nullptr)
+    Result postDelayed(uint32_t delay_ms, F &&f, EventLoopToken *token=nullptr, const char *debug_str=nullptr)
     {
         lambda_wrapper<F> wf{std::forward<F>(f)};
-        return postDelayed(delay_ms, Task(std::move(wf)), token, debugStr);
+        return postDelayed(delay_ms, Task(std::move(wf)), token, debug_str);
     }
-    Result postDelayed(uint32_t delay_ms, Task task, EventLoopToken *token=nullptr, const char *debugStr=nullptr);
+    Result postDelayed(uint32_t delay_ms, Task task, EventLoopToken *token=nullptr, const char *debug_str=nullptr);
 
     void wakeup();
     
