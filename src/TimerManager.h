@@ -92,7 +92,7 @@ public:
         }
         
         std::atomic<bool>   cancelled_{ true };
-        bool                repeating_{ false };
+        Timer::Mode         mode_{ Timer::Mode::ONE_SHOT };
         uint32_t            delay_ms_{ 0 };
         TICK_COUNT_TYPE     start_tick_{ 0 };
         // NOTE: timer callback will be reset after timer cancelled or executed, 

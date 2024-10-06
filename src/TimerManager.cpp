@@ -128,7 +128,7 @@ bool TimerManager::scheduleTimer(TimerNode *timer_node, uint32_t delay_ms, Timer
         }
         timer_node->start_tick_ = now_tick;
         timer_node->delay_ms_ = delay_ms;
-        timer_node->repeating_ = mode == Timer::Mode::REPEATING;
+        timer_node->mode_ = mode;
         timer_node->cb_ = std::move(cb);
         
         ret = addTimer(timer_node, FROM_SCHEDULE);
@@ -408,7 +408,9 @@ int TimerManager::checkExpire(unsigned long* remain_ms)
 {
     if(0 == timer_count_) {
         last_remain_ms_ = -1;
-        *remain_ms = last_remain_ms_;
+        if (remain_ms) {
+            *remain_ms = last_remain_ms_;
+        }
         return 0;
     }
     TICK_COUNT_TYPE now_tick = get_tick_count_ms();
@@ -488,8 +490,14 @@ int TimerManager::checkExpire(unsigned long* remain_ms)
         
         mutex_.lock();
         if(reschedule_node_) {
-            if (reschedule_node_->repeating_ && !reschedule_node_->cancelled_) {
-                reschedule_node_->start_tick_ = now_tick;
+            if (reschedule_node_->mode_ == Timer::Mode::REPEATING && !reschedule_node_->cancelled_) {
+                auto expected_tick = reschedule_node_->start_tick_ + reschedule_node_->delay_ms_;
+                int64_t diff_ms = now_tick - expected_tick;
+                if (diff_ms >= int64_t(reschedule_node_->delay_ms_)) {
+                    int64_t rounds = diff_ms / reschedule_node_->delay_ms_;
+                    expected_tick += reschedule_node_->delay_ms_ * rounds;
+                }
+                reschedule_node_->start_tick_ = expected_tick;
                 timer_cb.swap(reschedule_node_->cb_);
                 addTimer(reschedule_node_, FROM_RESCHEDULE);
             } else {
