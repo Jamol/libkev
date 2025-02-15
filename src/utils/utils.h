@@ -53,7 +53,7 @@ KEV_NS_BEGIN
 using LPFN_CANCELIOEX = BOOL(WINAPI*)(HANDLE, LPOVERLAPPED);
 #elif defined(KUMA_OS_MAC)
 # define getCurrentThreadId() pthread_mach_thread_np(pthread_self())
-#elif defined(KUMA_OS_ANDROID)
+#elif defined(KUMA_OS_ANDROID) || defined(KUMA_OS_OHOS) // ohos use gettid as android
 # define getCurrentThreadId() gettid()
 #elif defined(KUMA_OS_LINUX)
 # define getCurrentThreadId() syscall(__NR_gettid)

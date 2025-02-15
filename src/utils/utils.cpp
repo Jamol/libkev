@@ -40,7 +40,7 @@
 # include <dlfcn.h>
 # include <unistd.h>
 # include <netinet/tcp.h>
-# if defined(KUMA_OS_LINUX) || defined(KUMA_OS_ANDROID)
+# if defined(KUMA_OS_LINUX) || defined(KUMA_OS_ANDROID) || defined(KUMA_OS_OHOS)
 #  include <sys/prctl.h>
 # endif
 # if defined(KUMA_OS_MAC) || defined(KUMA_OS_IOS)
@@ -96,7 +96,7 @@ int km_resolve_2_ip_v4(const char *host_name, char *ip_buf, size_t ip_buf_len)
     }
     
     struct hostent* he = nullptr;
-#ifdef KUMA_OS_LINUX
+#if defined(KUMA_OS_LINUX) || defined(KUMA_OS_OHOS)
     int nError = 0;
     char szBuffer[1024] = {0};
     struct hostent *pheResultBuf = reinterpret_cast<struct hostent *>(szBuffer);
@@ -648,7 +648,7 @@ std::string getExecutablePath()
     }
     str_path = c_path;
 # endif
-#elif defined(KUMA_OS_LINUX)
+#elif defined(KUMA_OS_LINUX) || defined(KUMA_OS_OHOS)
     char c_path[1024] = {0};
     if (readlink("/proc/self/exe", c_path, sizeof(c_path)) < 0) {
         return "./";
@@ -687,7 +687,7 @@ std::string getModuleFullPath(const void* addr_in_module)
         return "";
     }
     str_path = file_name;
-#elif defined(KUMA_OS_MAC) || defined(KUMA_OS_LINUX)
+#elif defined(KUMA_OS_MAC) || defined(KUMA_OS_LINUX) || defined(KUMA_OS_OHOS)
     Dl_info dl_info;
     dladdr((void*)addr_in_module, &dl_info);
 
@@ -854,7 +854,7 @@ void setCurrentThreadName(const char *name)
 #endif
 
     setCurrentThreadNameX(name);
-#elif defined(KUMA_OS_LINUX) || defined(KUMA_OS_ANDROID)
+#elif defined(KUMA_OS_LINUX) || defined(KUMA_OS_ANDROID) || defined(KUMA_OS_OHOS)
     prctl(PR_SET_NAME, reinterpret_cast<unsigned long>(name));
 #elif defined(KUMA_OS_MAC) || defined(KUMA_OS_IOS)
     pthread_setname_np(name);

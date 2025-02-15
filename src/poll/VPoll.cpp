@@ -28,6 +28,8 @@
 
 #ifdef KUMA_OS_WIN
 # include <Ws2tcpip.h>
+#elif defined(KUMA_OS_OHOS)
+# include <poll.h>
 #else
 # include <sys/poll.h>
 #endif

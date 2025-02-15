@@ -539,7 +539,7 @@ IOPoll* createDefaultIOPoll()
         return createIocpPoll();
     }
     return createSelectPoll();
-#elif defined(KUMA_OS_LINUX)
+#elif defined(KUMA_OS_LINUX) || defined(KUMA_OS_OHOS)
     return createEPoll();
 #elif defined(KUMA_OS_MAC)
     return createKQueue();
@@ -564,7 +564,7 @@ IOPoll* createIOPoll(PollType poll_type)
             return createDefaultIOPoll();
 #endif
         case PollType::EPOLL:
-#ifdef KUMA_OS_LINUX
+#if defined(KUMA_OS_LINUX) || defined(KUMA_OS_OHOS)
             return createEPoll();
 #else
             return createDefaultIOPoll();

@@ -82,7 +82,7 @@ TimerManager::TimerManager(EventLoop::Impl* loop)
 
 TimerManager::~TimerManager()
 {
-    // don't call claer from dtor becase all of the weak pointers are expired
+    // don't call clear from dtor becase all of the weak pointers are expired
     // at this point and will encounter race condition when timer is destroying.
     // clear();
 }

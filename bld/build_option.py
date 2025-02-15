@@ -24,6 +24,8 @@ def get_default_options(systemName):
         opt['archs'] = ['x86_64']
     elif systemName == 'android':
         opt['archs'] = ['armeabi-v7a', 'arm64-v8a', 'x86', 'x86_64']
+    elif systemName == 'ohos':
+        opt['archs'] = ['arm64-v8a', 'x86_64']
     return opt
 
 def get_option(argv, systemName):

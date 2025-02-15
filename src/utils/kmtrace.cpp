@@ -18,7 +18,7 @@
 
 #ifdef KUMA_OS_WIN
 # include <Windows.h>
-#elif defined(KUMA_OS_LINUX)
+#elif defined(KUMA_OS_LINUX) || defined(KUMA_OS_OHOS)
 # include <sys/types.h>
 # include <unistd.h>
 # if !defined(KUMA_OS_ANDROID)
@@ -32,7 +32,7 @@
 # define vsnprintf(d, dl, fmt, ...) _vsnprintf_s(d, dl, _TRUNCATE, fmt, ##__VA_ARGS__)
 #elif defined(KUMA_OS_MAC)
 # define getCurrentThreadId() pthread_mach_thread_np(pthread_self())
-#elif defined(KUMA_OS_ANDROID)
+#elif defined(KUMA_OS_ANDROID) || defined(KUMA_OS_OHOS) // ohos use gettid as android
 # define getCurrentThreadId() gettid()
 #elif defined(KUMA_OS_LINUX)
 # define getCurrentThreadId() syscall(__NR_gettid)

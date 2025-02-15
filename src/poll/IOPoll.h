@@ -24,7 +24,7 @@
 # include <Ws2tcpip.h>
 # include <windows.h>
 # include <time.h>
-#elif defined(KUMA_OS_LINUX)
+#elif defined(KUMA_OS_LINUX) || defined(KUMA_OS_OHOS)
 # include <string.h>
 # include <pthread.h>
 # include <unistd.h>

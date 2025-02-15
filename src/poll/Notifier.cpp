@@ -24,7 +24,7 @@
 #ifdef KUMA_OS_WIN
 # include <Ws2tcpip.h>
 # include <windows.h>
-#elif defined(KUMA_OS_LINUX)
+#elif defined(KUMA_OS_LINUX) || defined(KUMA_OS_OHOS)
 # include <string.h>
 # include <pthread.h>
 # include <unistd.h>
@@ -60,7 +60,7 @@
 # error "UNSUPPORTED OS"
 #endif
 
-#ifdef KUMA_OS_LINUX
+#if defined(KUMA_OS_LINUX) || defined(KUMA_OS_OHOS)
 #include "EventNotifier.h"
 #elif !defined(KUMA_OS_WIN)
 #include "PipeNotifier.h"
@@ -71,7 +71,7 @@
 KEV_NS_USING
 
 NotifierPtr Notifier::createNotifier() {
-#ifdef KUMA_OS_LINUX
+#if defined(KUMA_OS_LINUX) || defined(KUMA_OS_OHOS)
     return NotifierPtr(new EventNotifier());
 #elif !defined(KUMA_OS_WIN)
     return NotifierPtr(new PipeNotifier());
