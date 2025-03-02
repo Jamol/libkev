@@ -1,4 +1,4 @@
-/* Copyright (c) 2014-2022, Fengping Bao <jamol@live.com>
+/* Copyright (c) 2014-2025, Fengping Bao <jamol@live.com>
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -246,9 +246,9 @@ public:
     
     void loopOnce(uint32_t max_wait_ms);
     void loop(uint32_t max_wait_ms = -1);
+    void start() { stop_loop_ = false; }
     void stop();
     bool stopped() const { return stop_loop_; }
-    void reset() { stop_loop_ = false; }
 
     void appendPendingObject(PendingObject *obj);
     void removePendingObject(PendingObject *obj);

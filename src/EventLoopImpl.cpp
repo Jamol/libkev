@@ -1,4 +1,4 @@
-/* Copyright (c) 2014-2022, Fengping Bao <jamol@live.com>
+/* Copyright (c) 2014-2025, Fengping Bao <jamol@live.com>
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -63,7 +63,6 @@ bool EventLoop::Impl::init()
     if(!poll_->init()) {
         return false;
     }
-    stop_loop_ = false;
     thread_id_ = std::this_thread::get_id();
     timer_mgr_->setRunningThreadId(thread_id_);
     return true;
@@ -234,9 +233,12 @@ void EventLoop::Impl::loopOnce(uint32_t max_wait_ms)
 
 void EventLoop::Impl::loop(uint32_t max_wait_ms)
 {
-    while (!stop_loop_) {
-        loopOnce(max_wait_ms);
+    if (init()) {
+        while (!stop_loop_) {
+            loopOnce(max_wait_ms);
+        }
     }
+    
     processTasks();
     
     while (pending_objects_) {
@@ -256,7 +258,6 @@ void EventLoop::Impl::loop(uint32_t max_wait_ms)
 
 void EventLoop::Impl::stop()
 {
-    //KM_INFOXTRACE("stop");
     stop_loop_ = true;
     wakeup();
 }

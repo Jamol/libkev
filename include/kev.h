@@ -1,4 +1,4 @@
-/* Copyright (c) 2014-2022, Fengping Bao <jamol@live.com>
+/* Copyright (c) 2014-2025, Fengping Bao <jamol@live.com>
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -49,7 +49,7 @@ public:
         Token& operator=(const Token &other) = delete;
         
         /* clear all tasks that are scheduled to this token. you cannot cancel the task that is in running,
-         * but will wait untill the task completion
+         * but will wait until the task completion
          */
         void reset();
         
@@ -73,9 +73,21 @@ public:
     EventLoop& operator=(EventLoop &&other);
     
 public:
+    /* start the loop, now tasks can be posted to the loop
+     * this API is thread-safe
+     */
+    void start();
+    /* stop the loop and will break the forever loop()
+     * no more tasks can be posted to this loop until next start()
+     * this API is thread-safe
+     */
+    void stop();
+    /* init the poller and timer manager
+     * must be called from running thread
+     */
     bool init();
     
-    /* NOTE: cb must be valid untill unregisterFd called
+    /* NOTE: cb must be valid until unregisterFd called
      * this API is thread-safe
      */
     Result registerFd(SOCKET_FD fd, uint32_t events, IOCallback cb);
@@ -103,7 +115,7 @@ public:
      */
     Token createToken() const;
     
-    /* run the task in loop thread and wait untill task is executed.
+    /* run the task in loop thread and wait until task is executed.
      * the task will be executed at once if called on loop thread
      * token is always unnecessary for sync task
      *
@@ -118,7 +130,7 @@ public:
         return invoke(std::forward<F>(f), err, token, debug_str);
     }
 
-    /* run the task in loop thread and wait untill task is executed.
+    /* run the task in loop thread and wait until task is executed.
      * the task will be executed at once if called on loop thread
      * token is always unnecessary for sync task
      *
@@ -151,7 +163,7 @@ public:
         err = sync(std::forward<F>(f), token, debug_str);
     }
 
-    /* run the task in loop thread and wait untill task is executed.
+    /* run the task in loop thread and wait until task is executed.
      * the task will be executed at once if called on loop thread
      * token is always unnecessary for sync task
      *
@@ -206,7 +218,7 @@ public:
     void wakeup();
     
     /* cancel the tasks that are scheduled with token. you cannot cancel the task that is in running,
-     * but will wait untill the task completion
+     * but will wait until the task completion
      *
      * @param token token of the tasks
      * this API is thread-safe
@@ -216,15 +228,7 @@ public:
     void loopOnce(uint32_t max_wait_ms);
     void loop(uint32_t max_wait_ms = -1);
 
-    /* stop the loop, no more Task can be posted to loop on stopped state
-     * reset() can be used to reset the stopped falg
-     */
-    void stop();
     bool stopped() const;
-
-    /* reset the loop state, Task can be posted again to the loop after reset
-     */
-    void reset();
     
     class Impl;
     using ImplPtr = std::shared_ptr<Impl>;
@@ -252,7 +256,8 @@ public:
     Timer& operator=(Timer &&other);
     
     /**
-     * Schedule the timer. This API is thread-safe
+     * Schedule the timer.
+     * This API is thread-safe
      */
     template<typename F, std::enable_if_t<!std::is_copy_constructible<F>{}, int> = 0>
     bool schedule(uint32_t delay_ms, Mode mode, F &&f)
@@ -267,7 +272,8 @@ public:
     bool schedule(uint32_t delay_ms, Mode mode, TimerCallback cb);
     
     /**
-     * Cancel the scheduled timer. This API is thread-safe
+     * Cancel the scheduled timer.
+     * This API is thread-safe
      */
     void cancel();
     

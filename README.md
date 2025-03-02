@@ -47,10 +47,9 @@ int main(int argc, const char * argv[])
     EventLoop run_loop;
     EventLoop::Token token = run_loop.createToken();
 
+    run_loop.start();
     std::thread thr([&] {
-        if (run_loop.init()) {
-            run_loop.loop();
-        }
+        run_loop.loop();
     });
     
     Timer timer(&run_loop);
