@@ -89,9 +89,6 @@ TimerManager::~TimerManager()
 
 bool TimerManager::scheduleTimer(TimerNode *timer_node, uint32_t delay_ms, Timer::Mode mode, TimerCallback cb)
 {
-    if(isTimerPending(timer_node) && delay_ms == timer_node->delay_ms_) {
-        return true;
-    }
     TICK_COUNT_TYPE now_tick = get_tick_count_ms();
     bool ret = false;
     {
