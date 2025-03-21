@@ -1,4 +1,4 @@
-/* Copyright (c) 2014-2022, Fengping Bao <jamol@live.com>
+/* Copyright (c) 2014-2025, Fengping Bao <jamol@live.com>
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -50,15 +50,20 @@ KEV_NS_BEGIN
 # define strcasecmp     _stricmp
 # define strncasecmp    _strnicmp
 # define getCurrentThreadId() GetCurrentThreadId()
+# define getCurrentProcessId() GetCurrentProcessId()
 using LPFN_CANCELIOEX = BOOL(WINAPI*)(HANDLE, LPOVERLAPPED);
 #elif defined(KUMA_OS_MAC)
 # define getCurrentThreadId() pthread_mach_thread_np(pthread_self())
+# define getCurrentProcessId() getpid()
 #elif defined(KUMA_OS_ANDROID) || defined(KUMA_OS_OHOS) // ohos use gettid as android
 # define getCurrentThreadId() gettid()
+# define getCurrentProcessId() getpid()
 #elif defined(KUMA_OS_LINUX)
 # define getCurrentThreadId() syscall(__NR_gettid)
+# define getCurrentProcessId() getpid()
 #else
 # define getCurrentThreadId() pthread_self()
+# define getCurrentProcessId() getpid()
 #endif
 
 #ifdef KUMA_OS_WIN

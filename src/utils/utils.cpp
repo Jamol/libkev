@@ -877,12 +877,17 @@ KEV_NS_USING
 
 void kev_init()
 {
+    static bool __inited = false;
+    if (__inited) {
+        return;
+    }
     WSADATA wsaData;
     WORD wVersionRequested = MAKEWORD(1, 1);
     int nResult = WSAStartup(wVersionRequested, &wsaData);
     if (nResult != 0) {
         return;
     }
+    __inited = true;
 
     auto sock = socket(AF_INET, SOCK_STREAM, 0);
     GUID guid = WSAID_CONNECTEX;

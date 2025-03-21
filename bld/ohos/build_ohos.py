@@ -26,7 +26,7 @@ def build_one_arch(workingPath, buildtype, arch, option):
     ohos_toolchain_file = OHOS_NATIVE_HOME + '/build/cmake/ohos.toolchain.cmake'
     cmake_exec = OHOS_NATIVE_HOME + '/build-tools/cmake/bin/cmake'
 
-    print("********** Compiling one ARCH, target:%s, host:%s, buildtype:%s **********" % (arch, hostArch, buildtype))
+    print("********** Compiling one ARCH, target:%s, buildtype:%s **********" % (arch, buildtype))
 
     cmakeConfig = ['-DCMAKE_SYSTEM_NAME=OHOS',
                    '-DCMAKE_OHOS_ARCH_ABI=' + arch,

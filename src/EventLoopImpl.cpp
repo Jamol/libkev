@@ -517,6 +517,8 @@ KEV_NS_END
 # include <MSWSock.h>
 #endif
 
+extern void kev_init();
+
 KEV_NS_BEGIN
 
 #ifdef KUMA_OS_WIN
@@ -552,6 +554,9 @@ IOPoll* createDefaultIOPoll()
 
 IOPoll* createIOPoll(PollType poll_type)
 {
+#ifdef KUMA_OS_WIN
+    kev_init(); // in case of calling from global EventLoop variable
+#endif
     switch (poll_type)
     {
         case PollType::POLL:
