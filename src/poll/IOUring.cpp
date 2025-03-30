@@ -54,27 +54,87 @@ KEV_NS_BEGIN
 #define SYS_IORING_OP_SENDMSG       IORING_OP_SENDMSG
 #define SYS_IORING_OP_RECVMSG       IORING_OP_RECVMSG
 #define SYS_IORING_OP_TIMEOUT       IORING_OP_TIMEOUT
-#define SYS_IORING_OP_ACCEPT        IORING_OP_ACCEPT
-#define SYS_IORING_OP_ASYNC_CANCEL  IORING_OP_ASYNC_CANCEL
-#define SYS_IORING_OP_CONNECT       IORING_OP_CONNECT
+#define SYS_IORING_OP_ACCEPT        13 //IORING_OP_ACCEPT
+#define SYS_IORING_OP_ASYNC_CANCEL  14 //IORING_OP_ASYNC_CANCEL
+#define SYS_IORING_OP_CONNECT       16 //IORING_OP_CONNECT
 #define SYS_IORING_OP_CLOSE         IORING_OP_CLOSE
-#define SYS_IORING_OP_SEND          IORING_OP_SEND
-#define SYS_IORING_OP_RECV          IORING_OP_RECV
+#define SYS_IORING_OP_SEND          26 //IORING_OP_SEND
+#define SYS_IORING_OP_RECV          27 //IORING_OP_RECV
 #define SYS_IORING_OP_SHUTDOWN      IORING_OP_SHUTDOWN 
 #define SYS_IORING_OP_POLL_ADD      IORING_OP_POLL_ADD
 #define SYS_IORING_OP_POLL_REMOVE   IORING_OP_POLL_REMOVE
 
-#if !defined(IORING_ASYNC_CANCEL_ALL)
-# define IORING_ASYNC_CANCEL_ALL	(1U << 0)
+/*
+ * POLL_ADD flags. Note that since sqe->poll_events is the flag space, the
+ * command flags for POLL_ADD are stored in sqe->len.
+ *
+ * IORING_POLL_ADD_MULTI	Multishot poll. Sets IORING_CQE_F_MORE if
+ *				the poll handler will continue to report
+ *				CQEs on behalf of the same SQE.
+ *
+ * IORING_POLL_UPDATE		Update existing poll request, matching
+ *				sqe->addr as the old user_data field.
+ *
+ * IORING_POLL_LEVEL		Level triggered poll.
+ */
+#ifndef IORING_POLL_ADD_MULTI
+#define IORING_POLL_ADD_MULTI           (1U << 0)
 #endif
-#if !defined(IORING_ASYNC_CANCEL_FD)
-#define IORING_ASYNC_CANCEL_FD	(1U << 1)
+#ifndef IORING_POLL_UPDATE_EVENTS
+#define IORING_POLL_UPDATE_EVENTS       (1U << 1)
 #endif
-#if !defined(IORING_ASYNC_CANCEL_ANY)
-#define IORING_ASYNC_CANCEL_ANY (1U << 2)
+#ifndef IORING_POLL_UPDATE_USER_DATA
+#define IORING_POLL_UPDATE_USER_DATA    (1U << 2)
+#endif
+#ifndef IORING_POLL_ADD_LEVEL
+#define IORING_POLL_ADD_LEVEL           (1U << 3)
+#endif
+
+/*
+ * ASYNC_CANCEL flags.
+ *
+ * IORING_ASYNC_CANCEL_ALL	Cancel all requests that match the given key
+ * IORING_ASYNC_CANCEL_FD	Key off 'fd' for cancelation rather than the
+ *				request 'user_data'
+ * IORING_ASYNC_CANCEL_ANY	Match any request
+ * IORING_ASYNC_CANCEL_FD_FIXED	'fd' passed in is a fixed descriptor
+ * IORING_ASYNC_CANCEL_USERDATA	Match on user_data, default for no other key
+ * IORING_ASYNC_CANCEL_OP	Match request based on opcode
+ */
+#ifndef IORING_ASYNC_CANCEL_ALL
+#define IORING_ASYNC_CANCEL_ALL         (1U << 0)
+#endif
+#ifndef IORING_ASYNC_CANCEL_FD
+#define IORING_ASYNC_CANCEL_FD          (1U << 1)
+#endif
+#ifndef IORING_ASYNC_CANCEL_ANY
+#define IORING_ASYNC_CANCEL_ANY         (1U << 2)
+#endif
+#ifndef IORING_ASYNC_CANCEL_FD_FIXED
+#define IORING_ASYNC_CANCEL_FD_FIXED    (1U << 3)
+#endif
+#ifndef IORING_ASYNC_CANCEL_USERDATA
+#define IORING_ASYNC_CANCEL_USERDATA    (1U << 4)
+#endif
+#ifndef IORING_ASYNC_CANCEL_OP
+#define IORING_ASYNC_CANCEL_OP          (1U << 5)
+#endif
+
+#ifndef IORING_ENTER_EXT_ARG
+#define IORING_ENTER_EXT_ARG            (1U << 3)
 #endif
 
 #define TIMEOUT_FD_VAL -9527
+
+/*
+ * Argument for io_uring_enter(2) with IORING_GETEVENTS | IORING_ENTER_EXT_ARG
+ */
+struct io_uring_getevents_arg {
+	__u64	sigmask;
+	__u32	sigmask_sz;
+	__u32	min_wait_usec;
+	__u64	ts;
+};
 
 class IOUring final : public IOPoll
 {
@@ -368,8 +428,8 @@ Result IOUring::submitOp(SOCKET_FD fd, const Op &op)
         case OpCode::ACCEPT:
             sqe->opcode = SYS_IORING_OP_ACCEPT;
             sqe->addr = (__u64)op.addr;
-            sqe->addr2 = (__u64)op.addr2;
-            sqe->accept_flags = op.flags;
+            sqe->off/*addr2*/ = (__u64)op.addr2;
+            sqe->msg_flags/*accept_flags*/ = op.flags;
             sqe->user_data = (__u64)op.data;
             if (op.data) op.data->fd = fd;
             return Result::OK;
@@ -408,7 +468,7 @@ Result IOUring::submitOp(SOCKET_FD fd, const Op &op)
             if (op.buf) {
                 sqe->addr = (__u64)op.buf;
             } else {
-                sqe->cancel_flags = IORING_ASYNC_CANCEL_FD | IORING_ASYNC_CANCEL_ALL;
+                sqe->msg_flags/*cancel_flags*/ = IORING_ASYNC_CANCEL_FD | IORING_ASYNC_CANCEL_ALL;
             }
             return Result::OK;
         
