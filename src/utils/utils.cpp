@@ -280,11 +280,16 @@ int km_set_addr_port(uint16_t port, sockaddr_storage &addr)
 
 size_t km_get_addr_length(const sockaddr_storage &addr)
 {
-    size_t addr_len = sizeof(addr);
-    if (AF_INET == addr.ss_family) {
+    return km_get_addr_length((const sockaddr *)&addr);
+}
+
+size_t km_get_addr_length(const sockaddr *addr)
+{
+    size_t addr_len = sizeof(sockaddr);
+    if (AF_INET == addr->sa_family) {
         addr_len = sizeof(sockaddr_in);
     }
-    else if (AF_INET6 == addr.ss_family) {
+    else if (AF_INET6 == addr->sa_family) {
         addr_len = sizeof(sockaddr_in6);
     }
     return addr_len;

@@ -166,6 +166,7 @@ int km_get_sock_addr(const sockaddr *addr, size_t addr_len, std::string &ip, uin
 int km_get_sock_addr(const sockaddr_storage &addr, std::string &ip, uint16_t *port);
 int km_set_addr_port(uint16_t port, sockaddr_storage &addr);
 size_t km_get_addr_length(const sockaddr_storage &addr);
+size_t km_get_addr_length(const sockaddr *addr);
 
 inline bool km_is_fatal_error(Result err)
 {
