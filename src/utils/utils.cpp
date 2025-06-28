@@ -666,7 +666,7 @@ std::string getExecutablePath()
         return "./";
     }
     auto pos = str_path.rfind(PATH_SEPARATOR, str_path.size());
-    if(pos != std::string::npos) {
+    if(pos != std::string::npos && pos > 0) {
         str_path.resize(pos);
     }
     str_path.append(1, PATH_SEPARATOR);
@@ -731,7 +731,9 @@ std::string getCurrentModulePath()
 {
     std::string str_path = getModuleFullPath((void*)getCurrentModulePath);
     auto pos = str_path.rfind(PATH_SEPARATOR, str_path.size());
-    str_path.resize(pos);
+    if (pos != std::string::npos && pos > 0) {
+        str_path.resize(pos);
+    }
     return str_path;
 }
 
