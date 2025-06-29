@@ -139,6 +139,9 @@ private:
     void clear_tv0_bitmap(int idx);
     int find_first_set_in_bitmap(int idx);
 
+    void handleRunningTimerCancellationLocked(TimerNode* timer_node, std::unique_lock<std::mutex>& ul);
+    void handlePendingTimerCancellationLocked(TimerNode* timer_node);
+
 private:
     EventLoop::Impl* loop_;
     std::mutex mutex_;

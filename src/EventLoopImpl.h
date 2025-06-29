@@ -255,6 +255,8 @@ public:
 
 protected:
     void processTasks();
+    void cleanupPendingObjects();
+    void notifyObservers(LoopActivity activity);
     
 protected:
     using ObserverQueue = DLQueue<ObserverCallback>;

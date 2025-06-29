@@ -29,6 +29,8 @@ KEV_NS_USING
 
 KEV_NS_BEGIN
 
+#define BITMAP_BITS_PER_ELEMENT (sizeof(tv0_bitmap_[0]) * 8)
+
 int find_first_set(unsigned int b);
 TICK_COUNT_TYPE get_tick_count_ms();
 TICK_COUNT_TYPE calc_time_elapse_delta_ms(TICK_COUNT_TYPE now_tick, TICK_COUNT_TYPE& start_tick);
@@ -82,7 +84,7 @@ TimerManager::TimerManager(EventLoop::Impl* loop)
 
 TimerManager::~TimerManager()
 {
-    // don't call clear from dtor becase all of the weak pointers are expired
+    // don't call clear from dtor because all of the weak pointers are expired
     // at this point and will encounter race condition when timer is destroying.
     // clear();
 }
@@ -114,15 +116,7 @@ bool TimerManager::scheduleTimer(TimerNode *timer_node, uint32_t delay_ms, Timer
                 return false;
             }
         }*/
-        if(isTimerPending(timer_node)) {
-            removeTimer(timer_node);
-        }
-        if(reschedule_node_ == timer_node) {
-            reschedule_node_ = nullptr;
-        }
-        if(cancelling_node_ == timer_node) {
-            cancelling_node_ = nullptr;
-        }
+        handlePendingTimerCancellationLocked(timer_node);
         timer_node->start_tick_ = now_tick;
         timer_node->delay_ms_ = delay_ms;
         timer_node->mode_ = mode;
@@ -150,27 +144,8 @@ void TimerManager::cancelTimer(TimerNode *timer_node)
     TimerCallback timer_cb; // hold timer cb temporarily
     {
         std::unique_lock<std::mutex> ul(mutex_);
-        if (running_node_ == timer_node && !inSameThread()) {
-            if(reschedule_node_ == timer_node) {
-                reschedule_node_ = nullptr;
-            }
-            ul.unlock();
-            running_mutex_.lock();
-            if(running_node_ == timer_node) {
-                running_node_ = nullptr;
-            }
-            running_mutex_.unlock();
-            ul.lock();
-        }
-        if(isTimerPending(timer_node)) {
-            removeTimer(timer_node);
-        }
-        if(reschedule_node_ == timer_node) {
-            reschedule_node_ = nullptr;
-        }
-        if(cancelling_node_ == timer_node) {
-            cancelling_node_ = nullptr;
-        }
+        handleRunningTimerCancellationLocked(timer_node, ul);
+        handlePendingTimerCancellationLocked(timer_node);
         timer_cb = timer_node->cancel();
     }
 }
@@ -187,18 +162,7 @@ void TimerManager::clear()
             {
                 auto *timer_node = tv_[i][j].next_;
                 cancelling_node_ = timer_node;
-                if (running_node_ == timer_node && !inSameThread()) {
-                    if(reschedule_node_ == timer_node) {
-                        reschedule_node_ = nullptr;
-                    }
-                    ul.unlock();
-                    running_mutex_.lock();
-                    if(running_node_ == timer_node) {
-                        running_node_ = nullptr;
-                    }
-                    running_mutex_.unlock();
-                    ul.lock();
-                }
+                handleRunningTimerCancellationLocked(timer_node, ul);
                 if(reschedule_node_ == timer_node) {
                     reschedule_node_ = nullptr;
                 }
@@ -221,6 +185,35 @@ void TimerManager::shutdown()
         shutdown_ = true;
     }
     clear();
+}
+
+void TimerManager::handleRunningTimerCancellationLocked(TimerNode* timer_node, std::unique_lock<std::mutex>& ul)
+{
+    if (running_node_ == timer_node && !inSameThread()) {
+        if(reschedule_node_ == timer_node) {
+            reschedule_node_ = nullptr;
+        }
+        ul.unlock();
+        running_mutex_.lock();
+        if(running_node_ == timer_node) {
+            running_node_ = nullptr;
+        }
+        running_mutex_.unlock();
+        ul.lock();
+    }
+}
+
+void TimerManager::handlePendingTimerCancellationLocked(TimerNode* timer_node)
+{
+    if(isTimerPending(timer_node)) {
+        removeTimer(timer_node);
+    }
+    if(reschedule_node_ == timer_node) {
+        reschedule_node_ = nullptr;
+    }
+    if(cancelling_node_ == timer_node) {
+        cancelling_node_ = nullptr;
+    }
 }
 
 void TimerManager::list_init_head(TimerNode* head)
@@ -272,27 +265,25 @@ bool TimerManager::list_empty(TimerNode* head)
 
 void TimerManager::set_tv0_bitmap(int idx)
 {
-    unsigned char a = (unsigned char)(idx/(sizeof(tv0_bitmap_[0])*8));
-    unsigned char b = (unsigned char)(idx%(sizeof(tv0_bitmap_[0])*8));
+    unsigned char a = (unsigned char)(idx/BITMAP_BITS_PER_ELEMENT);
+    unsigned char b = (unsigned char)(idx%BITMAP_BITS_PER_ELEMENT);
     tv0_bitmap_[a] |= 1 << b;
 }
 
 void TimerManager::clear_tv0_bitmap(int idx)
 {
-    unsigned char a = (unsigned char)(idx/(sizeof(tv0_bitmap_[0])*8));
-    unsigned char b = (unsigned char)(idx%(sizeof(tv0_bitmap_[0])*8));
+    unsigned char a = (unsigned char)(idx/BITMAP_BITS_PER_ELEMENT);
+    unsigned char b = (unsigned char)(idx%BITMAP_BITS_PER_ELEMENT);
     tv0_bitmap_[a] &= ~(1 << b);
 }
 
 int TimerManager::find_first_set_in_bitmap(int idx)
 {
-    unsigned char a = (unsigned char)(idx/(sizeof(tv0_bitmap_[0])*8));
-    unsigned char b = (unsigned char)(idx%(sizeof(tv0_bitmap_[0])*8));
-    int pos = -1;
-    pos = find_first_set(tv0_bitmap_[a] >> b);
+    unsigned char a = (unsigned char)(idx/BITMAP_BITS_PER_ELEMENT);
+    unsigned char b = (unsigned char)(idx%BITMAP_BITS_PER_ELEMENT);
+    int pos = find_first_set(tv0_bitmap_[a] >> b);
     if(-1 == pos) {
-        int i = a + 1;
-        for (i &= 7; i != a; ++i, i &= 7) {
+        for (int i = (a + 1) & 7; i != a; ++i, i &= 7) {
             pos = find_first_set(tv0_bitmap_[i]);
             if(-1 == pos) {
                 continue;
@@ -455,8 +446,8 @@ int TimerManager::checkExpire(unsigned long* remain_ms)
 #endif
         ++next_jiffies;
         if (!idx &&
-            (!cascadeTimer(1, INDEX(0))) &&
-            (!cascadeTimer(2, INDEX(1)))) {
+            !cascadeTimer(1, INDEX(0)) &&
+            !cascadeTimer(2, INDEX(1))) {
             cascadeTimer(3, INDEX(2));
         }
         list_combine(&tv_[0][idx], &tmp_head);

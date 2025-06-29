@@ -40,17 +40,9 @@ EventLoop::Impl::Impl(PollType poll_type)
 
 EventLoop::Impl::~Impl()
 {
-    while (pending_objects_) {
-        auto obj = pending_objects_;
-        pending_objects_ = pending_objects_->next_;
-        obj->onLoopExit();
-    }
-    ObserverCallback cb;
-    while (obs_queue_.dequeue(cb)) {
-        cb(LoopActivity::EXIT);
-    }
-    // clear all pending timers explicitly before weak pointers of
-    // timer_mgr are expired
+    cleanupPendingObjects();
+    notifyObservers(LoopActivity::EXIT);
+    // Shutdown timer manager before its weak pointers expire
     timer_mgr_->shutdown();
     if(poll_) {
         delete poll_;
@@ -70,18 +62,12 @@ bool EventLoop::Impl::init()
 
 PollType EventLoop::Impl::getPollType() const
 {
-    if(poll_) {
-        return poll_->getType();
-    }
-    return PollType::DEFAULT;
+    return poll_ ? poll_->getType() : PollType::DEFAULT;
 }
 
 bool EventLoop::Impl::isPollLT() const
 {
-    if(poll_) {
-        return poll_->isLevelTriggered();
-    }
-    return false;
+    return poll_ ? poll_->isLevelTriggered() : false;
 }
 
 Result EventLoop::Impl::registerFd(SOCKET_FD fd, uint32_t events, IOCallback cb)
@@ -92,7 +78,7 @@ Result EventLoop::Impl::registerFd(SOCKET_FD fd, uint32_t events, IOCallback cb)
     if(inSameThread()) {
         return poll_->registerFd(fd, events, std::move(cb));
     }
-    return async([=, cb=std::move(cb)] () mutable {
+    return async([=, cb{std::move(cb)}] () mutable {
         auto ret = poll_->registerFd(fd, events, std::move(cb));
         if(ret != Result::OK) {
             return ;
@@ -127,18 +113,13 @@ Result EventLoop::Impl::unregisterFd(SOCKET_FD fd, bool close_fd)
             SKUtils::close(fd);
         }
         return ret;
-    } else {
-        auto ret = sync([=] {
-            poll_->unregisterFd(fd);
-            if(close_fd) {
-                SKUtils::close(fd);
-            }
-        });
-        if(Result::OK != ret) {
-            return ret;
-        }
-        return Result::OK;
     }
+    return sync([=] {
+        poll_->unregisterFd(fd);
+        if(close_fd) {
+            SKUtils::close(fd);
+        }
+    });
 }
 
 Result EventLoop::Impl::submitOp(SOCKET_FD fd, const Op &op)
@@ -180,9 +161,20 @@ Result EventLoop::Impl::removeObserver(EventLoopToken *token)
     return Result::OK;
 }
 
+void EventLoop::Impl::notifyObservers(LoopActivity activity)
+{
+    ObserverCallback cb;
+    while (obs_queue_.dequeue(cb)) {
+        if (cb) {
+            cb(activity);
+        }
+    }
+}
+
 void EventLoop::Impl::appendPendingObject(PendingObject *obj)
 {
     KM_ASSERT(inSameThread());
+    KM_ASSERT(obj != nullptr);
     if (pending_objects_) {
         obj->next_ = pending_objects_;
         pending_objects_->prev_ = obj;
@@ -193,6 +185,7 @@ void EventLoop::Impl::appendPendingObject(PendingObject *obj)
 void EventLoop::Impl::removePendingObject(PendingObject *obj)
 {
     KM_ASSERT(inSameThread());
+    KM_ASSERT(obj != nullptr);
     if (pending_objects_ == obj) {
         pending_objects_ = obj->next_;
     }
@@ -201,6 +194,15 @@ void EventLoop::Impl::removePendingObject(PendingObject *obj)
     }
     if (obj->next_) {
         obj->next_->prev_ = obj->prev_;
+    }
+}
+
+void EventLoop::Impl::cleanupPendingObjects()
+{
+    while (pending_objects_) {
+        auto* obj = pending_objects_;
+        pending_objects_ = pending_objects_->next_;
+        obj->onLoopExit();
     }
 }
 
@@ -241,17 +243,10 @@ void EventLoop::Impl::loop(uint32_t max_wait_ms)
     
     processTasks();
     
-    while (pending_objects_) {
-        auto obj = pending_objects_;
-        pending_objects_ = pending_objects_->next_;
-        obj->onLoopExit();
-    }
+    cleanupPendingObjects();
     {
         LockGuard g(obs_mutex_);
-        ObserverCallback cb;
-        while (obs_queue_.dequeue(cb)) {
-            cb(LoopActivity::EXIT);
-        }
+        notifyObservers(LoopActivity::EXIT);
     }
     KM_INFOXTRACE("loop, stopped");
 }
@@ -279,7 +274,7 @@ Result EventLoop::Impl::appendTask(Task task, EventLoopToken *token, const char 
     } else {
         ptr = std::make_shared<TaskSlot>(std::move(task), std::move(dstr));
     }
-    bool need_wakeup;
+    bool need_wakeup = false;
     {
         LockGuard g(task_mutex_);
         need_wakeup = task_queue_.empty();
@@ -323,10 +318,11 @@ public:
     {
         other.cleared_ = true;
     }
-    auto_clean(const auto_clean& other)
-    : auto_clean(std::move(const_cast<auto_clean&>(other)))
-    {}
+    auto_clean(const auto_clean&) = delete;
     ~auto_clean() { if (!cleared_) c_(); }
+    
+    auto_clean& operator=(const auto_clean&) = delete;
+    auto_clean& operator=(auto_clean&&) = delete;
 
 private:
     Callable c_;
@@ -352,7 +348,7 @@ Result EventLoop::Impl::sync(Task task, EventLoopToken *token, const char *debug
             task();
             executed = true;
         };
-        auto ret = post(task_sync, token, debug_str);
+        auto ret = post(std::move(task_sync), token, debug_str);
         if (ret != Result::OK) {
             return ret;
         }
@@ -367,9 +363,8 @@ Result EventLoop::Impl::async(Task task, EventLoopToken *token, const char *debu
     if(inSameThread()) {
         task();
         return Result::OK;
-    } else {
-        return post(std::move(task), token, debug_str);
     }
+    return post(std::move(task), token, debug_str);
 }
 
 Result EventLoop::Impl::post(Task task, EventLoopToken *token, const char *debug_str)
