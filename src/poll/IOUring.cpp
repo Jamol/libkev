@@ -47,6 +47,8 @@
 KEV_NS_BEGIN
 
 #define QUEUE_DEPTH     256
+#define CQE_BATCH_SIZE  32
+#define TIMEOUT_FD_VAL  -9527
 
 #define SYS_IORING_OP_NOP           IORING_OP_NOP
 #define SYS_IORING_OP_READV         IORING_OP_READV
@@ -124,8 +126,6 @@ KEV_NS_BEGIN
 #define IORING_ENTER_EXT_ARG            (1U << 3)
 #endif
 
-#define TIMEOUT_FD_VAL -9527
-
 /*
  * Argument for io_uring_enter(2) with IORING_GETEVENTS | IORING_ENTER_EXT_ARG
  */
@@ -163,6 +163,8 @@ private:
     Result submit_op(SQE_OP &&sqe_op);
     int submit_sqes();
     int submit_and_wait(uint32_t wait_ms, uint32_t wait_nr);
+
+    void cleanup();
 
 private:
     int             uring_fd_;
@@ -251,6 +253,11 @@ IOUring::IOUring()
 
 IOUring::~IOUring()
 {
+    cleanup();
+}
+
+void IOUring::cleanup()
+{
     if(INVALID_FD != uring_fd_) {
         if (cq_ring_.ring_ptr && cq_ring_.ring_ptr != sq_ring_.ring_ptr) {
             munmap(cq_ring_.ring_ptr, cq_ring_.ring_sz);
@@ -274,6 +281,7 @@ bool IOUring::init()
     if(INVALID_FD != uring_fd_) {
         return true;
     }
+    
     struct io_uring_params p;
     memset(&p, 0, sizeof(p));
     uring_fd_ = __io_uring_setup(QUEUE_DEPTH, &p);
@@ -281,6 +289,8 @@ bool IOUring::init()
         KM_ERRTRACE("IOUring::init, io_uring_setup failed: " << uring_fd_);
         return false;
     }
+    
+    // Calculate ring sizes
     int sqring_sz = p.sq_off.array + p.sq_entries * sizeof(unsigned);
     int cqring_sz = p.cq_off.cqes + p.cq_entries * sizeof(struct io_uring_cqe);
     if (p.features & IORING_FEAT_SINGLE_MMAP) {
@@ -289,16 +299,19 @@ bool IOUring::init()
         }
         cqring_sz = sqring_sz;
     }
-    struct io_uring_sqe *sqes;
-    struct io_uring_cqe *cqes;
-    uint8_t *sq_ptr, *cq_ptr;
-    sq_ptr = (uint8_t*)mmap(0, sqring_sz, PROT_READ | PROT_WRITE,
+    
+    // Map submission queue ring
+    uint8_t *sq_ptr = (uint8_t*)mmap(0, sqring_sz, PROT_READ | PROT_WRITE,
                 MAP_SHARED | MAP_POPULATE,
                 uring_fd_, IORING_OFF_SQ_RING);
     if (sq_ptr == MAP_FAILED) {
-        KM_ERRTRACE("IOUring::init, mmap failed 1");
+        KM_ERRTRACE("IOUring::init, mmap failed for SQ ring");
+        cleanup();
         return false;
     }
+    
+    // Map completion queue ring
+    uint8_t *cq_ptr;
     if (p.features & IORING_FEAT_SINGLE_MMAP) {
         cq_ptr = sq_ptr;
     } else {
@@ -306,18 +319,28 @@ bool IOUring::init()
                 MAP_SHARED | MAP_POPULATE,
                 uring_fd_, IORING_OFF_CQ_RING);
         if (cq_ptr == MAP_FAILED) {
-            KM_ERRTRACE("IOUring::init, mmap failed 2");
+            KM_ERRTRACE("IOUring::init, mmap failed for CQ ring");
+            munmap(sq_ptr, sqring_sz);
+            cleanup();
             return false;
         }
     }
+    
+    // Map submission queue entries
     sqes_ = (io_uring_sqe*)mmap(0, p.sq_entries * sizeof(struct io_uring_sqe),
                 PROT_READ | PROT_WRITE, MAP_SHARED | MAP_POPULATE,
                 uring_fd_, IORING_OFF_SQES);
     if (sqes_ == MAP_FAILED) {
-        KM_ERRTRACE("IOUring::init, mmap failed 3");
+        KM_ERRTRACE("IOUring::init, mmap failed for SQEs");
+        if (cq_ptr != sq_ptr) {
+            munmap(cq_ptr, cqring_sz);
+        }
+        munmap(sq_ptr, sqring_sz);
+        cleanup();
         return false;
     }
 
+    // Setup submission queue ring pointers
     sq_ring_.head = (unsigned*)(sq_ptr + p.sq_off.head);
     sq_ring_.tail = (unsigned*)(sq_ptr + p.sq_off.tail);
     sq_ring_.ring_mask = (unsigned*)(sq_ptr + p.sq_off.ring_mask);
@@ -329,6 +352,7 @@ bool IOUring::init()
     sq_ring_.entries = p.sq_entries;
     sq_ring_.ring_ptr = sq_ptr;
 
+    // Setup completion queue ring pointers
     cq_ring_.head = (unsigned*)(cq_ptr + p.cq_off.head);
     cq_ring_.tail = (unsigned*)(cq_ptr + p.cq_off.tail);
     cq_ring_.ring_mask = (unsigned*)(cq_ptr + p.cq_off.ring_mask);
@@ -338,10 +362,11 @@ bool IOUring::init()
     cq_ring_.entries = p.cq_entries;
     cq_ring_.ring_ptr = cq_ptr;
 
-
-    // register notifier
+    // Register notifier for wake-up events
     if (!notifier_.ready()) {
         if(!notifier_.init()) {
+            KM_ERRTRACE("IOUring::init, failed to initialize notifier");
+            cleanup();
             return false;
         }
         auto efd = notifier_.getReadFD();
@@ -484,7 +509,7 @@ void IOUring::complete_ops()
     unsigned head = *cq_ring_.head;
     unsigned tail;
     do {
-        struct io_uring_cqe cqes[32];
+        struct io_uring_cqe cqes[CQE_BATCH_SIZE];
         int cnt = 0;
         do {
             // read barrier
@@ -593,7 +618,7 @@ int IOUring::submit_and_wait(uint32_t wait_ms, uint32_t wait_nr)
     struct io_uring_getevents_arg arg{0, 0, 0, 0};
     if(wait_ms != -1 && (wait_nr || wait_ms)) {
         tso.tv_sec = wait_ms/1000;
-        tso.tv_nsec = (wait_ms - to_val_.tv_sec*1000)*1000*1000;
+        tso.tv_nsec = (wait_ms - tso.tv_sec*1000)*1000*1000;
         arg.ts = (__u64)&tso;
         argsz = sizeof(arg);
         parg = &arg;
