@@ -1,4 +1,4 @@
-/* Copyright (c) 2016, Fengping Bao <jamol@live.com>
+/* Copyright (c) 2016-2025, Fengping Bao <jamol@live.com>
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -78,6 +78,7 @@ bool KQueue::init()
     }
     kqueue_fd_ = ::kqueue();
     if(INVALID_FD == kqueue_fd_) {
+        KM_ERRTRACE("KQueue::init, kqueue() failed, errno=" << errno);
         return false;
     }
 #if defined(EVFILT_USER) && defined(NOTE_TRIGGER)
@@ -92,6 +93,7 @@ bool KQueue::init()
     }
     if (notifier_ && !notifier_->ready()) {
         if(!notifier_->init()) {
+            KM_ERRTRACE("KQueue::init, notifier init failed");
             ::close(kqueue_fd_);
             kqueue_fd_ = INVALID_FD;
             return false;
@@ -134,7 +136,9 @@ Result KQueue::unregisterFd(SOCKET_FD fd)
     if (poll_items_[fd].events & kEventWrite) {
         EV_SET(&kevents[nchanges++], fd, EVFILT_WRITE, EV_DELETE, 0, 0, 0);
     }
-    ::kevent(kqueue_fd_, kevents, nchanges, 0, 0, 0);
+    if (nchanges) {
+        ::kevent(kqueue_fd_, kevents, nchanges, 0, 0, 0);
+    }
     if(fd < max_fd) {
         poll_items_[fd].reset();
     } else if (fd == max_fd) {

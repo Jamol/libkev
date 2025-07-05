@@ -53,9 +53,20 @@ public:
     bool isLevelTriggered() const override { return false; }
 
     Result submitOp(SOCKET_FD fd, const Op &op) override;
+    
+protected:
+    Result submitConnectOp(SOCKET_FD fd, const Op &op);
+    Result submitAcceptOp(SOCKET_FD fd, const Op &op);
+    Result submitReadvOp(SOCKET_FD fd, const Op &op);
+    Result submitWritevOp(SOCKET_FD fd, const Op &op);
+    Result submitSendmsgOp(SOCKET_FD fd, const Op &op);
+    Result submitRecvmsgOp(SOCKET_FD fd, const Op &op);
+    
+    // Common error handling for async operations
+    Result handleAsyncResult(BOOL result, SOCKET_FD fd, const char* operation);
 
 protected:
-    HANDLE hCompPort_ = nullptr;
+    HANDLE hCompPort_ { nullptr };
 };
 
 IocpPoll::IocpPoll()
@@ -88,6 +99,7 @@ Result IocpPoll::registerFd(SOCKET_FD fd, KMEvent events, IOCallback cb)
 {
     KM_INFOTRACE("IocpPoll::registerFd, fd=" << fd << ", events=" << events);
     if (CreateIoCompletionPort((HANDLE)fd, hCompPort_, (ULONG_PTR)fd, 0) == NULL) {
+        KM_ERRTRACE("IocpPoll::registerFd, CreateIoCompletionPort failed, err=" << GetLastError());
         return Result::POLL_ERROR;
     }
     resizePollItems(fd);
@@ -116,7 +128,109 @@ Result IocpPoll::unregisterFd(SOCKET_FD fd)
 
 Result IocpPoll::updateFd(SOCKET_FD fd, KMEvent events)
 {
+    // IOCP doesn't support dynamic event updates like epoll/kqueue
+    // Events are managed through individual async operations
     return Result::NOT_SUPPORTED;
+}
+
+Result IocpPoll::handleAsyncResult(BOOL result, SOCKET_FD fd, const char* operation)
+{
+    if (!result) {
+        DWORD error = SKUtils::getLastError();
+        if (error == WSA_IO_PENDING) {
+            return Result::OK; // Operation is pending, which is expected
+        }
+        KM_ERRTRACE("submitOp, " << operation << " error, fd=" << fd << ", err=" << error);
+        return Result::SOCK_ERROR;
+    }
+    
+    // Operation completed immediately, continue to wait for completion notification
+    // or set FILE_SKIP_COMPLETION_PORT_ON_SUCCESS
+    // SetFileCompletionNotificationModes
+    return Result::OK;
+}
+
+Result IocpPoll::submitConnectOp(SOCKET_FD fd, const Op &op)
+{
+    if (!connect_ex) {
+        return Result::NOT_SUPPORTED;
+    }
+    if (!op.data) {
+        return Result::INVALID_PARAM;
+    }
+    
+    memset(&op.data->ol, 0, sizeof(op.data->ol));
+    auto ret = connect_ex(fd, op.addr, op.addrlen, NULL, 0, NULL, (LPOVERLAPPED)op.data);
+    return handleAsyncResult(ret, fd, "connect");
+}
+
+Result IocpPoll::submitAcceptOp(SOCKET_FD fd, const Op &op)
+{
+    if (!accept_ex) {
+        return Result::NOT_SUPPORTED;
+    }
+    if (!op.data) {
+        return Result::INVALID_PARAM;
+    }
+    
+    memset(&op.data->ol, 0, sizeof(op.data->ol));
+    DWORD bytes_recv = 0;
+    auto ret = accept_ex(fd, op.data->fd, op.addr, 0, op.addrlen, op.addrlen, &bytes_recv, (LPOVERLAPPED)op.data);
+    return handleAsyncResult(ret, fd, "accept");
+}
+
+Result IocpPoll::submitReadvOp(SOCKET_FD fd, const Op &op)
+{
+    if (!op.data) {
+        return Result::INVALID_PARAM;
+    }
+    
+    memset(&op.data->ol, 0, sizeof(op.data->ol));
+    DWORD flags = op.flags, bytes_recv = 0;
+    auto ret = WSARecv(fd, (LPWSABUF)op.iovs, op.count, &bytes_recv, &flags, (LPOVERLAPPED)op.data, NULL);
+    return handleAsyncResult(ret != SOCKET_ERROR, fd, "readv");
+}
+
+Result IocpPoll::submitWritevOp(SOCKET_FD fd, const Op &op)
+{
+    if (!op.data) {
+        return Result::INVALID_PARAM;
+    }
+    
+    memset(&op.data->ol, 0, sizeof(op.data->ol));
+    DWORD bytes_sent = 0;
+    auto ret = WSASend(fd, (LPWSABUF)op.iovs, op.count, &bytes_sent, op.flags, (LPOVERLAPPED)op.data, NULL);
+    return handleAsyncResult(ret != SOCKET_ERROR, fd, "writev");
+}
+
+Result IocpPoll::submitSendmsgOp(SOCKET_FD fd, const Op &op)
+{
+    if (!wsa_sendmsg) {
+        return Result::NOT_SUPPORTED;
+    }
+    if (!op.data) {
+        return Result::INVALID_PARAM;
+    }
+    
+    memset(&op.data->ol, 0, sizeof(op.data->ol));
+    DWORD bytes_sent = 0;
+    auto ret = wsa_sendmsg(fd, (LPWSAMSG)op.buf, op.flags, &bytes_sent, (LPOVERLAPPED)op.data, NULL);
+    return handleAsyncResult(ret != SOCKET_ERROR, fd, "sendmsg");
+}
+
+Result IocpPoll::submitRecvmsgOp(SOCKET_FD fd, const Op &op)
+{
+    if (!wsa_recvmsg) {
+        return Result::NOT_SUPPORTED;
+    }
+    if (!op.data) {
+        return Result::INVALID_PARAM;
+    }
+    
+    memset(&op.data->ol, 0, sizeof(op.data->ol));
+    DWORD bytes_recv = 0;
+    auto ret = wsa_recvmsg(fd, (LPWSAMSG)op.buf, &bytes_recv, (LPOVERLAPPED)op.data, NULL);
+    return handleAsyncResult(ret != SOCKET_ERROR, fd, "recvmsg");
 }
 
 Result IocpPoll::submitOp(SOCKET_FD fd, const Op &op)
@@ -133,135 +247,22 @@ Result IocpPoll::submitOp(SOCKET_FD fd, const Op &op)
         return Result::OK;
     }
     case OpCode::CONNECT: {
-        if (!connect_ex) {
-            return Result::NOT_SUPPORTED;
-        }
-        if (!op.data) {
-            return Result::INVALID_PARAM;
-        }
-        memset(&op.data->ol, 0, sizeof(op.data->ol));
-        auto ret = connect_ex(fd, op.addr, op.addrlen, NULL, 0, NULL, (LPOVERLAPPED)op.data);
-        if (!ret) {
-            if (SKUtils::getLastError() == WSA_IO_PENDING) {
-                return Result::OK;
-            }
-            KM_ERRTRACE("submitOp, connect error, fd=" << fd << ", err=" << SKUtils::getLastError());
-            return Result::SOCK_ERROR;
-        }
-        else {
-            return Result::OK;
-        }
+        return submitConnectOp(fd, op);
     }
     case OpCode::ACCEPT: {
-        if (!accept_ex) {
-            return Result::NOT_SUPPORTED;
-        }
-        if (!op.data) {
-            return Result::INVALID_PARAM;
-        }
-        memset(&op.data->ol, 0, sizeof(op.data->ol));
-        DWORD bytes_recv = 0;
-        auto ret = accept_ex(fd, op.data->fd, op.addr, 0, op.addrlen, op.addrlen, &bytes_recv, (LPOVERLAPPED)op.data);
-        if (!ret) {
-            if (SKUtils::getLastError() == WSA_IO_PENDING) {
-                return Result::OK;
-            }
-            KM_ERRTRACE("submitOp, accept error, fd=" << fd << ", err=" << SKUtils::getLastError());
-            return Result::SOCK_ERROR;
-        }
-        else {
-            return Result::OK;
-        }
+        return submitAcceptOp(fd, op);
     }
     case OpCode::READV: {
-        if (!op.data) {
-            return Result::INVALID_PARAM;
-        }
-        memset(&op.data->ol, 0, sizeof(op.data->ol));
-        DWORD flags = op.flags, bytes_recv = 0;
-        auto ret = WSARecv(fd, (LPWSABUF)op.iovs, op.count, &bytes_recv, &flags, (LPOVERLAPPED)op.data, NULL);
-        if (ret == SOCKET_ERROR) {
-            if (SKUtils::getLastError() == WSA_IO_PENDING) {
-                return Result::OK;
-            }
-            KM_ERRTRACE("submitOp, readv error, fd=" << fd << ", err=" << SKUtils::getLastError());
-            return Result::SOCK_ERROR;
-        }
-        else {
-            // operation completed, continue to wait for the completion notification
-            // or set FILE_SKIP_COMPLETION_PORT_ON_SUCCESS
-            // SetFileCompletionNotificationModes
-            return Result::OK;
-        }
+        return submitReadvOp(fd, op);
     }
     case OpCode::WRITEV: {
-        if (!op.data) {
-            return Result::INVALID_PARAM;
-        }
-        memset(&op.data->ol, 0, sizeof(op.data->ol));
-        DWORD bytes_sent = 0;
-        auto ret = WSASend(fd, (LPWSABUF)op.iovs, op.count, &bytes_sent, op.flags, (LPOVERLAPPED)op.data, NULL);
-        if (ret == SOCKET_ERROR) {
-            if (SKUtils::getLastError() == WSA_IO_PENDING) {
-                return Result::OK;
-            }
-            KM_ERRTRACE("submitOp, writev error, fd=" << fd << ", err=" << SKUtils::getLastError());
-            return Result::SOCK_ERROR;
-        }
-        else {
-            // operation completed, continue to wait for the completion notification
-            // or set FILE_SKIP_COMPLETION_PORT_ON_SUCCESS
-            // SetFileCompletionNotificationModes
-            return Result::OK;
-        }
+        return submitWritevOp(fd, op);
     }
     case OpCode::SENDMSG: {
-        if (!wsa_sendmsg) {
-            return Result::NOT_SUPPORTED;
-        }
-        if (!op.data) {
-            return Result::INVALID_PARAM;
-        }
-        memset(&op.data->ol, 0, sizeof(op.data->ol));
-        DWORD bytes_sent = 0;
-        auto ret = wsa_sendmsg(fd, (LPWSAMSG)op.buf, op.flags, &bytes_sent, (LPOVERLAPPED)op.data, NULL);
-        if (ret == SOCKET_ERROR) {
-            if (SKUtils::getLastError() == WSA_IO_PENDING) {
-                return Result::OK;
-            }
-            KM_ERRTRACE("submitOp, sendmsg error, fd=" << fd << ", err=" << SKUtils::getLastError());
-            return Result::SOCK_ERROR;
-        }
-        else {
-            // operation completed, continue to wait for the completion notification
-            // or set FILE_SKIP_COMPLETION_PORT_ON_SUCCESS
-            // SetFileCompletionNotificationModes
-            return Result::OK;
-        }
+        return submitSendmsgOp(fd, op);
     }
     case OpCode::RECVMSG: {
-        if (!wsa_recvmsg) {
-            return Result::NOT_SUPPORTED;
-        }
-        if (!op.data) {
-            return Result::INVALID_PARAM;
-        }
-        memset(&op.data->ol, 0, sizeof(op.data->ol));
-        DWORD bytes_recv = 0;
-        auto ret = wsa_recvmsg(fd, (LPWSAMSG)op.buf, &bytes_recv, (LPOVERLAPPED)op.data, NULL);
-        if (ret == SOCKET_ERROR) {
-            if (SKUtils::getLastError() == WSA_IO_PENDING) {
-                return Result::OK;
-            }
-            KM_ERRTRACE("submitOp, recvmsg error, fd=" << fd << ", err=" << SKUtils::getLastError());
-            return Result::SOCK_ERROR;
-        }
-        else {
-            // operation completed, continue to wait for the completion notification
-            // or set FILE_SKIP_COMPLETION_PORT_ON_SUCCESS
-            // SetFileCompletionNotificationModes
-            return Result::OK;
-        }
+        return submitRecvmsgOp(fd, op);
     }
     case OpCode::CANCEL: {
         BOOL ret = cancel_io_ex ?
@@ -273,8 +274,6 @@ Result IocpPoll::submitOp(SOCKET_FD fd, const Op &op)
     default:
         return Result::INVALID_OPERATION;
     }
-
-    return Result::INVALID_PARAM;
 }
 
 #if 1

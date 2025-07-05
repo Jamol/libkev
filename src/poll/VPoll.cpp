@@ -52,11 +52,11 @@ public:
     bool isLevelTriggered() const override { return true; }
     
 private:
-    uint32_t get_events(KMEvent kuma_events);
-    KMEvent get_kuma_events(uint32_t events);
+    uint32_t get_events(KMEvent kuma_events) const;
+    KMEvent get_kuma_events(uint32_t events) const;
     
 private:
-    typedef std::vector<pollfd> PollFdVector;
+    using PollFdVector = std::vector<pollfd>;
     NotifierPtr     notifier_ { Notifier::createNotifier() };
     PollFdVector    poll_fds_;
 };
@@ -84,7 +84,7 @@ bool VPoll::init()
     return true;
 }
 
-uint32_t VPoll::get_events(KMEvent kuma_events)
+uint32_t VPoll::get_events(KMEvent kuma_events) const
 {
     uint32_t ev = 0;
     if(kuma_events & kEventRead) {
@@ -107,7 +107,7 @@ uint32_t VPoll::get_events(KMEvent kuma_events)
     return ev;
 }
 
-KMEvent VPoll::get_kuma_events(uint32_t events)
+KMEvent VPoll::get_kuma_events(uint32_t events) const
 {
     KMEvent ev = 0;
     if(events & (POLLIN | POLLPRI)) {
@@ -133,8 +133,9 @@ Result VPoll::registerFd(SOCKET_FD fd, KMEvent events, IOCallback cb)
         pollfd pfd;
         pfd.fd = fd;
         pfd.events = get_events(events);
+        pfd.revents = 0;
         poll_fds_.push_back(pfd);
-        idx = int(poll_fds_.size() - 1);
+        idx = static_cast<int>(poll_fds_.size() - 1);
         poll_items_[fd].idx = idx;
     }
     poll_items_[fd].fd = fd;
@@ -160,7 +161,7 @@ Result VPoll::unregisterFd(SOCKET_FD fd)
         poll_items_.pop_back();
     }
     
-    int last_idx = int(poll_fds_.size() - 1);
+    int last_idx = static_cast<int>(poll_fds_.size() - 1);
     if (idx > last_idx || -1 == idx) {
         return Result::OK;
     }
@@ -184,8 +185,8 @@ Result VPoll::updateFd(SOCKET_FD fd, KMEvent events)
         return Result::INVALID_PARAM;
     }
     int idx = poll_items_[fd].idx;
-    if (idx < 0 || idx >= (int)poll_fds_.size()) {
-        KM_WARNTRACE("VPoll::updateFd, failed, index="<<idx);
+    if (idx < 0 || idx >= static_cast<int>(poll_fds_.size())) {
+        KM_WARNTRACE("VPoll::updateFd, failed, index=" << idx);
         return Result::INVALID_STATE;
     }
     if(poll_fds_[idx].fd != fd) {
@@ -202,7 +203,7 @@ Result VPoll::wait(uint32_t wait_ms)
 #ifdef KUMA_OS_WIN
     int num_revts = WSAPoll(&poll_fds_[0], static_cast<ULONG>(poll_fds_.size()), wait_ms);
 #else
-    int num_revts = poll(&poll_fds_[0], (nfds_t)poll_fds_.size(), wait_ms);
+    int num_revts = poll(&poll_fds_[0], static_cast<nfds_t>(poll_fds_.size()), wait_ms);
 #endif
     if (-1 == num_revts) {
         if(EINTR == errno) {
@@ -215,22 +216,19 @@ Result VPoll::wait(uint32_t wait_ms)
 
     // copy poll fds since event handler may unregister fd
     PollFdVector poll_fds = poll_fds_;
-    
-    int idx = 0;
-    int last_idx = int(poll_fds.size() - 1);
-    while(num_revts > 0 && idx <= last_idx) {
-        if(poll_fds[idx].revents) {
+    for (size_t i = 0; i < poll_fds.size() && num_revts > 0; ++i) {
+        if(poll_fds[i].revents) {
             --num_revts;
-            if(poll_fds[idx].fd < poll_items_.size()) {
-                auto &item = poll_items_[poll_fds[idx].fd];
-                auto revents = get_kuma_events(poll_fds[idx].revents);
+            auto fd = poll_fds[i].fd;
+            if(fd >= 0 && fd < static_cast<SOCKET_FD>(poll_items_.size())) {
+                auto &item = poll_items_[fd];
+                auto revents = get_kuma_events(poll_fds[i].revents);
                 revents &= item.events;
                 if (revents && item.cb) {
-                    item.cb(poll_fds[idx].fd, revents, nullptr, 0);
+                    item.cb(fd, revents, nullptr, 0);
                 }
             }
         }
-        ++idx;
     }
     return Result::OK;
 }

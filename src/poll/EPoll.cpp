@@ -1,4 +1,4 @@
-/* Copyright (c) 2014, Fengping Bao <jamol@live.com>
+/* Copyright (c) 2014-2025, Fengping Bao <jamol@live.com>
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -46,16 +46,15 @@ public:
     bool isLevelTriggered() const override { return false; }
 
 private:
-    uint32_t get_events(KMEvent kuma_events);
-    KMEvent get_kuma_events(uint32_t events);
+    uint32_t get_events(KMEvent kuma_events) const;
+    KMEvent get_kuma_events(uint32_t events) const;
 
 private:
-    int             epoll_fd_;
+    int             epoll_fd_ { INVALID_FD };
     NotifierPtr     notifier_ { std::move(Notifier::createNotifier()) };
 };
 
 EPoll::EPoll()
-: epoll_fd_(INVALID_FD)
 {
 
 }
@@ -75,10 +74,12 @@ bool EPoll::init()
     }
     epoll_fd_ = epoll_create(MAX_EPOLL_FDS);
     if(INVALID_FD == epoll_fd_) {
+        KM_ERRTRACE("EPoll::init, epoll_create failed, errno=" << errno);
         return false;
     }
     if (!notifier_->ready()) {
         if(!notifier_->init()) {
+            KM_ERRTRACE("EPoll::init, notifier init failed");
             close(epoll_fd_);
             epoll_fd_ = INVALID_FD;
             return false;
@@ -89,7 +90,7 @@ bool EPoll::init()
     return true;
 }
 
-uint32_t EPoll::get_events(KMEvent kuma_events)
+uint32_t EPoll::get_events(KMEvent kuma_events) const
 {
     uint32_t ev = EPOLLET;//EPOLLIN | EPOLLOUT | EPOLLERR | EPOLLHUP | EPOLLET;
     if(kuma_events & kEventRead) {
@@ -104,7 +105,7 @@ uint32_t EPoll::get_events(KMEvent kuma_events)
     return ev;
 }
 
-KMEvent EPoll::get_kuma_events(uint32_t events)
+KMEvent EPoll::get_kuma_events(uint32_t events) const
 {
     KMEvent ev = 0;
     if(events & EPOLLIN) {
@@ -137,6 +138,7 @@ Result EPoll::registerFd(SOCKET_FD fd, KMEvent events, IOCallback cb)
     evt.events = get_events(events);//EPOLLIN | EPOLLOUT | EPOLLERR | EPOLLHUP | EPOLLET;
     if(epoll_ctl(epoll_fd_, epoll_op, fd, &evt) < 0) {
         KM_ERRTRACE("EPoll::registerFd error, fd=" << fd << ", ev=" << evt.events << ", errno=" << errno);
+        poll_items_[fd].reset();
         return Result::FAILED;
     }
     KM_INFOTRACE("EPoll::registerFd, fd=" << fd << ", ev=" << evt.events);
@@ -166,6 +168,11 @@ Result EPoll::updateFd(SOCKET_FD fd, KMEvent events)
     if(fd < 0 || fd >= poll_items_.size() || INVALID_FD == poll_items_[fd].fd) {
         return Result::FAILED;
     }
+    
+    if (poll_items_[fd].events == events) {
+        return Result::OK;
+    }
+    
     struct epoll_event evt = {0};
     evt.data.ptr = (void*)(long)fd;
     evt.events = get_events(events);
@@ -180,7 +187,7 @@ Result EPoll::updateFd(SOCKET_FD fd, KMEvent events)
 Result EPoll::wait(uint32_t wait_ms)
 {
     struct epoll_event events[MAX_EVENT_NUM];
-    int nfds = epoll_wait(epoll_fd_, events, MAX_EVENT_NUM , wait_ms);
+    int nfds = epoll_wait(epoll_fd_, events, MAX_EVENT_NUM, wait_ms);
     if (nfds < 0) {
         if(errno != EINTR) {
             KM_ERRTRACE("EPoll::wait, errno="<<errno);

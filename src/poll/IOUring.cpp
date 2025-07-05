@@ -154,9 +154,6 @@ public:
     Result submitOp(SOCKET_FD fd, const Op &op) override;
 
 private:
-    uint32_t get_events(KMEvent kuma_events);
-    KMEvent get_kuma_events(uint32_t events);
-
     void complete_ops();
     void complete_ops(struct io_uring_cqe *cqes, int cnt);
     template<typename SQE_OP>
@@ -229,7 +226,7 @@ inline int __io_uring_register(int fd, unsigned opcode,
                          arg, nr_args);
 }
 
-} // namespace {
+} // namespace
 
 static uint8_t to_ioring_opcode(OpCode op);
 
@@ -385,24 +382,16 @@ bool IOUring::init()
     return true;
 }
 
-uint32_t IOUring::get_events(KMEvent kuma_events)
-{
-    uint32_t ev = 0;
-    return ev;
-}
-
-KMEvent IOUring::get_kuma_events(uint32_t events)
-{
-    KMEvent ev = 0;
-    return ev;
-}
-
 Result IOUring::registerFd(SOCKET_FD fd, KMEvent events, IOCallback cb)
 {
     if (fd < 0) {
         return Result::INVALID_PARAM;
     }
     resizePollItems(fd);
+    poll_items_[fd].fd = fd;
+    poll_items_[fd].events = events;
+    poll_items_[fd].cb = std::move(cb);
+    KM_INFOTRACE("IOUring::registerFd, fd=" << fd << ", events=" << events);
     return Result::OK;
 }
 
@@ -410,7 +399,7 @@ Result IOUring::unregisterFd(SOCKET_FD fd)
 {
     int max_fd = int(poll_items_.size() - 1);
     KM_INFOTRACE("IOUring::unregisterFd, fd="<<fd<<", max_fd="<<max_fd);
-    if (fd < 0 || fd > max_fd) {
+    if (fd < 0 || -1 == max_fd || fd > max_fd) {
         KM_WARNTRACE("IOUring::unregisterFd, failed, max_fd=" << max_fd);
         return Result::INVALID_PARAM;
     }
@@ -644,8 +633,10 @@ Result IOUring::wait(uint32_t wait_ms)
     int ret = submit_and_wait(wait_ms, 1);
     if (ret >= 0) {
         complete_ops();
+        return Result::OK;
+    } else {
+        return Result::POLL_ERROR;
     }
-    return Result::OK;
 }
 
 void IOUring::notify()

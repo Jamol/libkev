@@ -1,4 +1,4 @@
-/* Copyright (c) 2023, Fengping Bao <jamol@live.com>
+/* Copyright (c) 2023-2025, Fengping Bao <jamol@live.com>
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -50,8 +50,8 @@ public:
     void onSocketCallBack(CFSocketRef s, CFSocketCallBackType type);
 
 private:
-    CFSocketCallBackType get_events(KMEvent kuma_events);
-    KMEvent get_kuma_events(CFSocketCallBackType events);
+    CFSocketCallBackType get_events(KMEvent kuma_events) const;
+    KMEvent get_kuma_events(CFSocketCallBackType events) const;
     void resizeSockItems(SOCKET_FD fd) {
         auto count = sock_items_.size();
         if (fd >= count) {
@@ -135,7 +135,7 @@ bool RunLoopMac::init()
     return true;
 }
 
-CFSocketCallBackType RunLoopMac::get_events(KMEvent kuma_events)
+CFSocketCallBackType RunLoopMac::get_events(KMEvent kuma_events) const
 {
     CFSocketCallBackType ev = kCFSocketNoCallBack;
     if(kuma_events & kEventRead) {
@@ -150,7 +150,7 @@ CFSocketCallBackType RunLoopMac::get_events(KMEvent kuma_events)
     return ev;
 }
 
-KMEvent RunLoopMac::get_kuma_events(CFSocketCallBackType events)
+KMEvent RunLoopMac::get_kuma_events(CFSocketCallBackType events) const
 {
     KMEvent ev = 0;
     if(events & kCFSocketReadCallBack) {

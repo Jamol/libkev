@@ -51,8 +51,8 @@ public:
     void on_poller_notify();
     
 private:
-    uint32_t get_events(uint32_t kuma_events);
-    uint32_t get_kuma_events(uint32_t events);
+    uint32_t get_events(uint32_t kuma_events) const;
+    uint32_t get_kuma_events(uint32_t events) const;
     void resizePollItems(SOCKET_FD fd);
 
 private:
@@ -88,7 +88,7 @@ bool WinPoll::init()
     return true;
 }
 
-uint32_t WinPoll::get_events(uint32_t kuma_events)
+uint32_t WinPoll::get_events(uint32_t kuma_events) const
 {
     uint32_t ev = 0;
     if(kuma_events & kEventRead) {
@@ -103,7 +103,7 @@ uint32_t WinPoll::get_events(uint32_t kuma_events)
     return ev;
 }
 
-uint32_t WinPoll::get_kuma_events(uint32_t events)
+uint32_t WinPoll::get_kuma_events(uint32_t events) const
 {
     uint32_t ev = 0;
     if (events & FD_CONNECT) { // writeable
