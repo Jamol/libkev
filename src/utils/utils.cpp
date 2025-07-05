@@ -617,13 +617,91 @@ size_t random_bytes(void *buf, size_t len)
     return len;
 }
 
+#if defined(KUMA_OS_WIN)
+std::string utf8_encode(const wchar_t *wstr, int len)
+{
+    if (!wstr || !len) return std::string();
+    auto utf8_len = WideCharToMultiByte(CP_UTF8, 0, wstr, len, NULL, 0, NULL, NULL);
+    if (utf8_len <= 0) {
+        return "";
+    }
+    std::string utf8_str(utf8_len, 0);
+    utf8_len = WideCharToMultiByte(CP_UTF8, 0, wstr, len, &utf8_str[0], utf8_len, NULL, NULL);
+    if (utf8_len < 0) {
+        return "";
+    }
+    return utf8_str;
+}
+
+std::string utf8_encode(const wchar_t *wstr)
+{
+    auto utf8_len = WideCharToMultiByte(CP_UTF8, 0, wstr, -1, NULL, 0, NULL, NULL);
+    if (utf8_len <= 1) { // include the terminating null character
+        return "";
+    }
+    std::string utf8_str(utf8_len, 0);
+    utf8_len = WideCharToMultiByte(CP_UTF8, 0, wstr, -1, &utf8_str[0], utf8_len, NULL, NULL);
+    --utf8_len; // exclude the terminating null character
+    if (utf8_len < 0) {
+        return "";
+    }
+    utf8_str.resize(utf8_len);
+    return utf8_str;
+}
+// Convert a wide Unicode string to an UTF8 string
+std::string utf8_encode(const std::wstring &wstr)
+{
+    if (wstr.empty()) return std::string();
+    int size_needed = WideCharToMultiByte(CP_UTF8, 0, &wstr[0], (int)wstr.size(), NULL, 0, NULL, NULL);
+    std::string strTo(size_needed, 0);
+    WideCharToMultiByte(CP_UTF8, 0, &wstr[0], (int)wstr.size(), &strTo[0], size_needed, NULL, NULL);
+    return strTo;
+}
+
+// Convert an UTF8 string to a wide Unicode String
+std::wstring utf8_decode(const std::string &str)
+{
+    if (str.empty()) return std::wstring();
+    int size_needed = MultiByteToWideChar(CP_UTF8, 0, &str[0], (int)str.size(), NULL, 0);
+    std::wstring wstrTo(size_needed, 0);
+    MultiByteToWideChar(CP_UTF8, 0, &str[0], (int)str.size(), &wstrTo[0], size_needed);
+    return wstrTo;
+}
+
+void setCurrentThreadNameX(const char *name)
+{
+    struct {
+        DWORD dwType;
+        LPCSTR szName;
+        DWORD dwThreadID;
+        DWORD dwFlags;
+    } threadname_info = { 0x1000, name, static_cast<DWORD>(-1), 0 };
+
+    __try {
+        ::RaiseException(0x406D1388, 0, sizeof(threadname_info) / sizeof(DWORD),
+            reinterpret_cast<ULONG_PTR*>(&threadname_info));
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER) {
+    }
+}
+#endif // KUMA_OS_WIN
+
 std::string getExecutablePath()
 {
     std::string str_path;
 #ifdef KUMA_OS_WIN
-    char c_path[MAX_PATH] = { 0 };
-    GetModuleFileNameA(NULL, c_path, sizeof(c_path));
-    str_path = c_path;
+    TCHAR c_path[MAX_PATH] = { 0 };
+    auto count = GetModuleFileNameW(NULL, c_path, ARRAYSIZE(c_path));
+    if (count > 0) {
+        // skip leading "\\\\?\"
+        if (count > 4 && count <= MAX_PATH &&
+            c_path[0] == '\\' && c_path[1] == '\\' &&
+            c_path[2] == '?'  && c_path[3] == '\\') {
+            str_path = utf8_encode(c_path + 4, count - 4);
+        } else {
+            str_path = utf8_encode(c_path, count);
+        }
+    }
 #elif defined(KUMA_OS_MAC)
 # ifndef KUMA_OS_IOS
     char c_path[PROC_PIDPATHINFO_MAXSIZE];
@@ -686,12 +764,20 @@ std::string getModuleFullPath(const void* addr_in_module)
     if (!ret) {
         return "";
     }
-    char file_name[2048] = { 0 };
-    auto count = ::GetModuleFileNameA(hmodule, file_name, ARRAYSIZE(file_name));
+    constexpr size_t BUFFER_SIZE = 1024 > MAX_PATH ? 1024 : MAX_PATH;
+    TCHAR file_name[BUFFER_SIZE+1] = { 0 };
+    auto count = ::GetModuleFileNameW(hmodule, file_name, BUFFER_SIZE);
     if (count == 0) {
         return "";
     }
-    str_path = file_name;
+    // skip leading "\\\\?\"
+    if (count > 4 && count <= MAX_PATH &&
+        file_name[0] == '\\' && file_name[1] == '\\' &&
+        file_name[2] == '?'  && file_name[3] == '\\') {
+        str_path = utf8_encode(file_name + 4, count - 4);
+    } else {
+        str_path = utf8_encode(file_name, count);
+    }
 #elif defined(KUMA_OS_MAC) || defined(KUMA_OS_LINUX) || defined(KUMA_OS_OHOS)
     Dl_info dl_info;
     dladdr((void*)addr_in_module, &dl_info);
@@ -764,75 +850,6 @@ std::string getDateTimeString(bool utc)
     auto now = system_clock::now();
     return toString(now, utc);
 }
-
-#if defined(KUMA_OS_WIN)
-std::string utf8_encode(const wchar_t *wstr, int len)
-{
-    if (!wstr || !len) return std::string();
-    auto utf8_len = WideCharToMultiByte(CP_UTF8, 0, wstr, len, NULL, 0, NULL, NULL);
-    if (utf8_len <= 0) {
-        return "";
-    }
-    std::string utf8_str(utf8_len, 0);
-    utf8_len = WideCharToMultiByte(CP_UTF8, 0, wstr, len, &utf8_str[0], utf8_len, NULL, NULL);
-    if (utf8_len < 0) {
-        return "";
-    }
-    return utf8_str;
-}
-
-std::string utf8_encode(const wchar_t *wstr)
-{
-    auto utf8_len = WideCharToMultiByte(CP_UTF8, 0, wstr, -1, NULL, 0, NULL, NULL);
-    if (utf8_len <= 1) { // include the terminating null character
-        return "";
-    }
-    std::string utf8_str(utf8_len, 0);
-    utf8_len = WideCharToMultiByte(CP_UTF8, 0, wstr, -1, &utf8_str[0], utf8_len, NULL, NULL);
-    --utf8_len; // exclude the terminating null character
-    if (utf8_len < 0) {
-        return "";
-    }
-    utf8_str.resize(utf8_len);
-    return utf8_str;
-}
-// Convert a wide Unicode string to an UTF8 string
-std::string utf8_encode(const std::wstring &wstr)
-{
-    if (wstr.empty()) return std::string();
-    int size_needed = WideCharToMultiByte(CP_UTF8, 0, &wstr[0], (int)wstr.size(), NULL, 0, NULL, NULL);
-    std::string strTo(size_needed, 0);
-    WideCharToMultiByte(CP_UTF8, 0, &wstr[0], (int)wstr.size(), &strTo[0], size_needed, NULL, NULL);
-    return strTo;
-}
-
-// Convert an UTF8 string to a wide Unicode String
-std::wstring utf8_decode(const std::string &str)
-{
-    if (str.empty()) return std::wstring();
-    int size_needed = MultiByteToWideChar(CP_UTF8, 0, &str[0], (int)str.size(), NULL, 0);
-    std::wstring wstrTo(size_needed, 0);
-    MultiByteToWideChar(CP_UTF8, 0, &str[0], (int)str.size(), &wstrTo[0], size_needed);
-    return wstrTo;
-}
-
-void setCurrentThreadNameX(const char *name)
-{
-    struct {
-        DWORD dwType;
-        LPCSTR szName;
-        DWORD dwThreadID;
-        DWORD dwFlags;
-    } threadname_info = { 0x1000, name, static_cast<DWORD>(-1), 0 };
-
-    __try {
-        ::RaiseException(0x406D1388, 0, sizeof(threadname_info) / sizeof(DWORD),
-            reinterpret_cast<ULONG_PTR*>(&threadname_info));
-    }
-    __except (EXCEPTION_EXECUTE_HANDLER) {
-    }
-}
-#endif // KUMA_OS_WIN
 
 void setCurrentThreadName(const char *name)
 {
