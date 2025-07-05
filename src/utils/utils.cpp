@@ -349,14 +349,14 @@ int km_parse_address(const char *addr,
     
     const char* tmp = strstr(addr, "://");
     if(tmp) {
-        if(proto) {
+        if(proto && proto_len > 0) {
             auto tmp_len = (std::min)(proto_len-1, static_cast<size_t>(tmp-addr));
             memcpy(proto, addr, tmp_len);
             proto[tmp_len] = '\0';
         }
         tmp += 3;
     } else {
-        if(proto) proto[0] = '\0';
+        if(proto && proto_len > 0) proto[0] = '\0';
         tmp = addr;
     }
     const char* end = strchr(tmp, '/');
@@ -365,7 +365,7 @@ int km_parse_address(const char *addr,
     }
     
     const char* tmp1 = strchr(tmp, '[');
-    if(tmp1) {// ipv6 address
+    if(tmp1) {// IPv6 address
         tmp = tmp1 + 1;
         tmp1 = strchr(tmp, ']');
         if(!tmp1)
@@ -527,10 +527,13 @@ bool is_equal(const std::string &str1, const char *str2, int n)
 
 char* trim_left(char *str, char c)
 {
-    while (*str && *str++ == c) {
-        ;
+    if (!str) {
+        return str;
     }
     
+    while (*str && *str == c) {
+        ++str;
+    }
     return str;
 }
 
@@ -541,10 +544,16 @@ char* trim_right(char *str, char c)
 
 char* trim_right(char *str, char *str_end, char c)
 {
-    while (--str_end >= str && *str_end == c) {
+    if (!str || !str_end || str_end <= str) {
+        return str;
+    }
+    char *p_end = str_end;
+    while (--p_end >= str && *p_end == c) {
         ;
     }
-    *(++str_end) = 0;
+    if (++p_end < str_end) {
+        *p_end = '\0';
+    }
     
     return str;
 }
@@ -557,9 +566,11 @@ std::string& trim_left(std::string &str, char c)
 
 std::string& trim_right(std::string &str, char c)
 {
-    auto pos = str.find_last_not_of(c);
-    if(pos != std::string::npos) {
+    const auto pos = str.find_last_not_of(c);
+    if (pos != std::string::npos) {
         str.erase(pos + 1);
+    } else {
+        str.clear();
     }
     return str;
 }
@@ -603,15 +614,15 @@ size_t random_bytes(void *buf, size_t len)
     using rand_type = unsigned int;
     using bytes_randomizer = std::independent_bits_engine<std::default_random_engine, sizeof(rand_type)*8, rand_type>;
     
-    auto sl = len / sizeof(rand_type);
-    auto rl = len - sl * sizeof(rand_type);
+    const auto sl = len / sizeof(rand_type);
+    const auto rl = len - sl * sizeof(rand_type);
     auto *p = static_cast<rand_type*>(buf);
     bytes_randomizer br(std::random_device{}());
     if (sl > 0) {
         std::generate(p, p + sl, std::ref(br));
     }
     if (rl > 0) {
-        rand_type r = br();
+        const rand_type r = br();
         memcpy(static_cast<char*>(buf) + len - rl, &r, rl);
     }
     return len;
@@ -620,15 +631,15 @@ size_t random_bytes(void *buf, size_t len)
 #if defined(KUMA_OS_WIN)
 std::string utf8_encode(const wchar_t *wstr, int len)
 {
-    if (!wstr || !len) return std::string();
+    if (!wstr || !len) return {};
     auto utf8_len = WideCharToMultiByte(CP_UTF8, 0, wstr, len, NULL, 0, NULL, NULL);
     if (utf8_len <= 0) {
-        return "";
+        return {};
     }
     std::string utf8_str(utf8_len, 0);
     utf8_len = WideCharToMultiByte(CP_UTF8, 0, wstr, len, &utf8_str[0], utf8_len, NULL, NULL);
     if (utf8_len < 0) {
-        return "";
+        return {};
     }
     return utf8_str;
 }
@@ -637,13 +648,13 @@ std::string utf8_encode(const wchar_t *wstr)
 {
     auto utf8_len = WideCharToMultiByte(CP_UTF8, 0, wstr, -1, NULL, 0, NULL, NULL);
     if (utf8_len <= 1) { // include the terminating null character
-        return "";
+        return {};
     }
     std::string utf8_str(utf8_len, 0);
     utf8_len = WideCharToMultiByte(CP_UTF8, 0, wstr, -1, &utf8_str[0], utf8_len, NULL, NULL);
     --utf8_len; // exclude the terminating null character
     if (utf8_len < 0) {
-        return "";
+        return {};
     }
     utf8_str.resize(utf8_len);
     return utf8_str;
@@ -651,7 +662,7 @@ std::string utf8_encode(const wchar_t *wstr)
 // Convert a wide Unicode string to an UTF8 string
 std::string utf8_encode(const std::wstring &wstr)
 {
-    if (wstr.empty()) return std::string();
+    if (wstr.empty()) return {};
     int size_needed = WideCharToMultiByte(CP_UTF8, 0, &wstr[0], (int)wstr.size(), NULL, 0, NULL, NULL);
     std::string strTo(size_needed, 0);
     WideCharToMultiByte(CP_UTF8, 0, &wstr[0], (int)wstr.size(), &strTo[0], size_needed, NULL, NULL);
@@ -661,7 +672,7 @@ std::string utf8_encode(const std::wstring &wstr)
 // Convert an UTF8 string to a wide Unicode String
 std::wstring utf8_decode(const std::string &str)
 {
-    if (str.empty()) return std::wstring();
+    if (str.empty()) return {};
     int size_needed = MultiByteToWideChar(CP_UTF8, 0, &str[0], (int)str.size(), NULL, 0);
     std::wstring wstrTo(size_needed, 0);
     MultiByteToWideChar(CP_UTF8, 0, &str[0], (int)str.size(), &wstrTo[0], size_needed);
@@ -754,7 +765,7 @@ std::string getExecutablePath()
 std::string getModuleFullPath(const void* addr_in_module)
 {
     if (!addr_in_module) {
-        return "";
+        return {};
     }
     std::string str_path;
 #ifdef KUMA_OS_WIN
@@ -762,15 +773,15 @@ std::string getModuleFullPath(const void* addr_in_module)
     auto flags = GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT;
     auto ret = ::GetModuleHandleEx(flags, (LPCTSTR)addr_in_module, &hmodule);
     if (!ret) {
-        return "";
+        return {};
     }
     constexpr size_t BUFFER_SIZE = 1024 > MAX_PATH ? 1024 : MAX_PATH;
     TCHAR file_name[BUFFER_SIZE+1] = { 0 };
     auto count = ::GetModuleFileNameW(hmodule, file_name, BUFFER_SIZE);
     if (count == 0) {
-        return "";
+        return {};
     }
-    // skip leading "\\\\?\"
+    // Skip leading "\\?\"
     if (count > 4 && count <= MAX_PATH &&
         file_name[0] == '\\' && file_name[1] == '\\' &&
         file_name[2] == '?'  && file_name[3] == '\\') {
@@ -780,11 +791,12 @@ std::string getModuleFullPath(const void* addr_in_module)
     }
 #elif defined(KUMA_OS_MAC) || defined(KUMA_OS_LINUX) || defined(KUMA_OS_OHOS)
     Dl_info dl_info;
-    dladdr((void*)addr_in_module, &dl_info);
-
+    if (dladdr(const_cast<void*>(addr_in_module), &dl_info) == 0) {
+        return {};
+    }
     str_path = dl_info.dli_fname;
 #else
-    return "";
+    return {};
 #endif
 
 #ifdef KUMA_OS_MAC
@@ -799,10 +811,10 @@ std::string getModuleFullPath(const void* addr_in_module)
         pos2 = str_path.rfind(PATH_SEPARATOR, pos1 - 1);
     }
     if (pos2 != std::string::npos) {
-        auto name = str_path.substr(pos2 + 1, pos1 - pos2 - 1);
-        auto pos3 = name.rfind('.');
+        const auto name = str_path.substr(pos2 + 1, pos1 - pos2 - 1);
+        const auto pos3 = name.rfind('.');
         if (pos3 != std::string::npos) {
-            auto ext = name.substr(pos3 + 1);
+            const auto ext = name.substr(pos3 + 1);
             if (ext == "framework" || ext == "bundle" || ext == "app") {
                 str_path.erase(pos1);
             }
@@ -899,21 +911,24 @@ KEV_NS_END
 
 KEV_NS_USING
 
-void kev_init()
+bool kev_init()
 {
     static bool __inited = false;
     if (__inited) {
-        return;
+        return true;
     }
     WSADATA wsaData;
     WORD wVersionRequested = MAKEWORD(1, 1);
     int nResult = WSAStartup(wVersionRequested, &wsaData);
     if (nResult != 0) {
-        return;
+        return false;
     }
     __inited = true;
 
     auto sock = socket(AF_INET, SOCK_STREAM, 0);
+    if (sock == INVALID_SOCKET) {
+        return false;
+    }
     GUID guid = WSAID_CONNECTEX;
     DWORD bytes = 0;
     if (::WSAIoctl(sock, SIO_GET_EXTENSION_FUNCTION_POINTER, &guid, sizeof(guid), &connect_ex, sizeof(connect_ex), &bytes, 0, 0) != 0) {
@@ -939,6 +954,7 @@ void kev_init()
     }
     closesocket(sock);
     cancel_io_ex = (LPFN_CANCELIOEX)GetProcAddress(GetModuleHandle(L"KERNEL32"), "CancelIoEx");
+    return true;
 }
 
 void kev_fini()

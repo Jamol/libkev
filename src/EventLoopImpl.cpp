@@ -512,7 +512,7 @@ KEV_NS_END
 # include <MSWSock.h>
 #endif
 
-extern void kev_init();
+extern bool kev_init();
 
 KEV_NS_BEGIN
 
