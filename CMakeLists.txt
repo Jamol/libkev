@@ -147,7 +147,7 @@ endif ()
 
 if (KEV_ENABLE_ASAN)
   add_compile_options(-fsanitize=address,undefined -fsanitize-recover=all -fno-omit-frame-pointer
-                      -fno-optimize-sibling-calls -fno-var-tracking -fno-stack-protector -O1 -g1)
+                      -fno-optimize-sibling-calls -fno-var-tracking -fno-stack-protector)
   message("Address Sanitizer enabled")
 endif()
 

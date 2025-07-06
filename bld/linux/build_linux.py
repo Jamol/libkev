@@ -65,7 +65,7 @@ def build_one_arch(workingPath, buildtype, arch, option):
                    '-DCMAKE_CXX_FLAGS=-m64']
     if option['rebuild'] and os.path.exists('Makefile'):
         run_and_check_error('make clean')
-    if option['memcheck']:
+    if option['memcheck'] and buildtype == 'Debug':
         cmakeConfig.append('-DKEV_ENABLE_ASAN=1')
     if ver_major > 5 or (ver_major == 5 and ver_minor >= 13):
         cmakeConfig.append('-DKEV_HAS_IOURING=1')
