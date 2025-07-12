@@ -26,7 +26,11 @@ def build_one_arch(workingPath, arch, option):
         os.mkdir(archPath)
     os.chdir(archPath)
 
-    run_and_check_error('cmake -G ' + get_generator(option['msvc'], arch) + ' ../../../..')
+    cmakeConfig = []
+    if option['memcheck'] and option['debug']:
+        cmakeConfig.append('-DKEV_ENABLE_ASAN=1')
+    run_and_check_error('cmake -G ' + get_generator(option['msvc'], arch) + ' ../../../.. '
+                        + ' '.join(cmakeConfig))
     patch = ' /t:Rebuild ' if option['rebuild'] else ''
     if option['debug']:
         run_and_check_error('MSBuild.exe kev.vcxproj /p:Configuration=Debug /p:Platform=' + arch + patch)
