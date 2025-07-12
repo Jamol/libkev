@@ -144,10 +144,14 @@ if (CMAKE_SYSTEM_NAME MATCHES "Darwin")
   endif ()
 endif ()
 
-
 if (KEV_ENABLE_ASAN)
-  add_compile_options(-fsanitize=address,undefined -fsanitize-recover=all -fno-omit-frame-pointer
-                      -fno-optimize-sibling-calls -fno-var-tracking -fno-stack-protector)
+  add_compile_options(
+    $<$<CONFIG:DEBUG>:-fsanitize=address,undefined>
+    $<$<CONFIG:DEBUG>:-fsanitize-recover=all>
+    $<$<CONFIG:DEBUG>:-fno-omit-frame-pointer>
+    $<$<CONFIG:DEBUG>:-fno-optimize-sibling-calls>
+    $<$<CONFIG:DEBUG>:-fno-var-tracking>
+    $<$<CONFIG:DEBUG>:-fno-stack-protector>)
   message("Address Sanitizer enabled")
 endif()
 
