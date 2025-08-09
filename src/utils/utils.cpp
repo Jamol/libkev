@@ -704,10 +704,10 @@ std::string getExecutablePath()
     TCHAR c_path[MAX_PATH] = { 0 };
     auto count = GetModuleFileNameW(NULL, c_path, ARRAYSIZE(c_path));
     if (count > 0) {
-        // skip leading "\\\\?\"
+        // skip leading "\\?\"
         if (count > 4 && count <= MAX_PATH &&
-            c_path[0] == '\\' && c_path[1] == '\\' &&
-            c_path[2] == '?'  && c_path[3] == '\\') {
+            c_path[0] == L'\\' && c_path[1] == L'\\' &&
+            c_path[2] == L'?'  && c_path[3] == L'\\') {
             str_path = utf8_encode(c_path + 4, count - 4);
         } else {
             str_path = utf8_encode(c_path, count);
@@ -783,8 +783,8 @@ std::string getModuleFullPath(const void* addr_in_module)
     }
     // Skip leading "\\?\"
     if (count > 4 && count <= MAX_PATH &&
-        file_name[0] == '\\' && file_name[1] == '\\' &&
-        file_name[2] == '?'  && file_name[3] == '\\') {
+        file_name[0] == L'\\' && file_name[1] == L'\\' &&
+        file_name[2] == L'?'  && file_name[3] == L'\\') {
         str_path = utf8_encode(file_name + 4, count - 4);
     } else {
         str_path = utf8_encode(file_name, count);
