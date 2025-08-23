@@ -20,6 +20,8 @@
 # include <sys/socket.h>
 #endif
 
+#include <string>
+
 KEV_NS_BEGIN
 
 
@@ -166,40 +168,58 @@ public:
 #endif
     }
 
-    static std::string getSockName(SOCKET_FD fd)
+    static int getSockName(SOCKET_FD fd, std::string *sip, uint16_t *port)
     {
         if (fd == INVALID_FD) {
-            return std::string();
+            return -1;
         }
 
         sockaddr_storage ss_addr;
         socklen_t addr_len = sizeof(ss_addr);
-        if (::getsockname(fd, (sockaddr*)&ss_addr, &addr_len) != 0) {
-            return std::string();
+        int ret = ::getsockname(fd, (sockaddr*)&ss_addr, &addr_len);
+        if (ret != 0) {
+            return ret;
         }
         char ip[128] = { 0 };
-        if(::getnameinfo((struct sockaddr*)&ss_addr, addr_len, ip, sizeof(ip), NULL, 0, NI_NUMERICHOST|NI_NUMERICSERV) != 0) {
-            return std::string();
+        char service[16] = {0};
+        ret = ::getnameinfo((struct sockaddr*)&ss_addr, addr_len, ip, sizeof(ip), service, sizeof(service), NI_NUMERICHOST|NI_NUMERICSERV);
+        if(ret != 0) {
+            return ret;
         }
-        return ip;
+        if (sip) {
+            *sip = ip;
+        }
+        if (port) {
+            *port = atoi(service);
+        }
+        return 0;
     }
 
-    static std::string getPeerName(SOCKET_FD fd)
+    static int getPeerName(SOCKET_FD fd, std::string *sip, uint16_t *port)
     {
         if (fd == INVALID_FD) {
-            return std::string();
+            return -1;
         }
 
         sockaddr_storage ss_addr;
         socklen_t addr_len = sizeof(ss_addr);
-        if (::getpeername(fd, (sockaddr*)&ss_addr, &addr_len) != 0) {
-            return std::string();
+        int ret = ::getpeername(fd, (sockaddr*)&ss_addr, &addr_len);
+        if (ret != 0) {
+            return ret;
         }
         char ip[128] = { 0 };
-        if(::getnameinfo((struct sockaddr*)&ss_addr, addr_len, ip, sizeof(ip), NULL, 0, NI_NUMERICHOST|NI_NUMERICSERV) != 0) {
-            return std::string();
+        char service[16] = {0};
+        ret = ::getnameinfo((struct sockaddr*)&ss_addr, addr_len, ip, sizeof(ip), service, sizeof(service), NI_NUMERICHOST|NI_NUMERICSERV);
+        if(ret != 0) {
+            return ret;
         }
-        return ip;
+        if (sip) {
+            *sip = ip;
+        }
+        if (port) {
+            *port = atoi(service);
+        }
+        return 0;
     }
     
     static int getLastError()
