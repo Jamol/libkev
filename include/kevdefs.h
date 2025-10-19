@@ -88,7 +88,8 @@ enum class PollType {
     IOCP,
     IORING,
     RUNLOOP,
-    STLCV, // none IO event loop
+    WSAEV, // WSA Event
+    STLCV = 15, // none IO event loop
 };
 
 
