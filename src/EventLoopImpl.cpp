@@ -528,6 +528,7 @@ IOPoll* createSelectPoll();
 IOPoll* createIocpPoll();
 IOPoll* createIOUring();
 IOPoll* createRunLoop();
+IOPoll* createWevPoll();
 IOPoll* createCVPoll();
 
 IOPoll* createDefaultIOPoll()
@@ -590,6 +591,10 @@ IOPoll* createIOPoll(PollType poll_type)
             return createRunLoop();
 #else
             return createDefaultIOPoll();
+#endif
+#ifdef KUMA_OS_WIN
+        case PollType::WSAEV:
+            return createWevPoll();
 #endif
         case PollType::STLCV:
             return createCVPoll();

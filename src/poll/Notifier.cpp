@@ -66,6 +66,7 @@
 #include "PipeNotifier.h"
 #else
 #include "SocketNotifier.h"
+#include "UdpSocketNotifier.h"
 #endif
 
 KEV_NS_USING
@@ -76,6 +77,6 @@ NotifierPtr Notifier::createNotifier() {
 #elif !defined(KUMA_OS_WIN)
     return NotifierPtr(new PipeNotifier());
 #else
-    return NotifierPtr(new SocketNotifier());
+    return NotifierPtr(new UdpSocketNotifier());
 #endif
 }

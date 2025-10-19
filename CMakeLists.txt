@@ -29,7 +29,8 @@ file(GLOB SOURCE_FILES
   ${PROJ_ROOT_DIR}/src/poll/Notifier.cpp)
 
 if (CMAKE_SYSTEM_NAME MATCHES "Windows")
-  file(GLOB WINDOWS_SOURCES ${PROJ_ROOT_DIR}/src/poll/IocpPoll.cpp)
+  file(GLOB WINDOWS_SOURCES ${PROJ_ROOT_DIR}/src/poll/IocpPoll.cpp
+                            ${PROJ_ROOT_DIR}/src/poll/WevPoll.cpp)
   set(SOURCE_FILES ${SOURCE_FILES} ${WINDOWS_SOURCES})
 elseif (CMAKE_SYSTEM_NAME MATCHES "Darwin")
   set(CMAKE_MACOSX_RPATH 1)

@@ -100,9 +100,7 @@ uint32_t VPoll::get_events(KMEvent kuma_events) const
 #endif
     }
     if(kuma_events & kEventError) {
-#ifndef KUMA_OS_WIN
         ev |= POLLERR | POLLHUP | POLLNVAL;
-#endif
     }
     return ev;
 }
