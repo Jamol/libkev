@@ -36,7 +36,7 @@
 
 KEV_NS_BEGIN
 
-class VPoll : public IOPoll
+class VPoll : public IOPoll, public IOPollItem<PollItem>
 {
 public:
     VPoll();
@@ -69,7 +69,6 @@ VPoll::VPoll()
 VPoll::~VPoll()
 {
     poll_fds_.clear();
-    poll_items_.clear();
 }
 
 bool VPoll::init()
@@ -127,20 +126,20 @@ Result VPoll::registerFd(SOCKET_FD fd, KMEvent events, IOCallback cb)
     if (fd < 0) {
         return Result::INVALID_PARAM;
     }
-    resizePollItems(fd);
-    int idx = -1;
-    if (INVALID_FD == poll_items_[fd].fd || -1 == poll_items_[fd].idx) { // new
-        pollfd pfd;
-        pfd.fd = fd;
-        pfd.events = get_events(events);
-        pfd.revents = 0;
-        poll_fds_.push_back(pfd);
-        idx = static_cast<int>(poll_fds_.size() - 1);
-        poll_items_[fd].idx = idx;
+    auto *poll_item = getPollItem(fd, true);
+    if (!poll_item) {
+        KM_ERRTRACE("VPoll::registerFd no poll item, fd=" << fd << ", sz=" << getPollItemSize());
+        return Result::BUFFER_TOO_SMALL;
     }
-    poll_items_[fd].fd = fd;
-    poll_items_[fd].events = events;
-    poll_items_[fd].cb = std::move(cb);
+    int idx = -1;
+    if (INVALID_FD == poll_item->fd || -1 == poll_item->idx) { // new
+        pollfd pfd{fd, (short)get_events(events), 0};
+        poll_fds_.emplace_back(pfd);
+        poll_item->idx = static_cast<int>(poll_fds_.size() - 1);
+    }
+    poll_item->fd = fd;
+    poll_item->events = events;
+    poll_item->cb = std::move(cb);
     KM_INFOTRACE("VPoll::registerFd, fd="<<fd<<", events="<<events<<", index="<<idx);
     
     return Result::OK;
@@ -148,18 +147,15 @@ Result VPoll::registerFd(SOCKET_FD fd, KMEvent events, IOCallback cb)
 
 Result VPoll::unregisterFd(SOCKET_FD fd)
 {
-    auto max_fd = SOCKET_FD(poll_items_.size() - 1);
-    KM_INFOTRACE("VPoll::unregisterFd, fd="<<fd<<", max_fd="<<max_fd);
-    if (fd < 0 || -1 == max_fd || fd > max_fd) {
-        KM_WARNTRACE("VPoll::unregisterFd, failed, max_fd="<<max_fd);
+    auto sz = getPollItemSize();
+    KM_INFOTRACE("VPoll::unregisterFd, fd="<<fd<<", sz="<<sz);
+    auto *poll_item = getPollItem(fd);
+    if (!poll_item) {
+        KM_ERRTRACE("VPoll::unregisterFd failed, fd=" << fd);
         return Result::INVALID_PARAM;
     }
-    int idx = poll_items_[fd].idx;
-    if(fd < max_fd) {
-        poll_items_[fd].reset();
-    } else if (fd == max_fd) {
-        poll_items_.pop_back();
-    }
+    int idx = poll_item->idx;
+    clearPollItem(fd);
     
     int last_idx = static_cast<int>(poll_fds_.size() - 1);
     if (idx > last_idx || -1 == idx) {
@@ -167,7 +163,10 @@ Result VPoll::unregisterFd(SOCKET_FD fd)
     }
     if (idx != last_idx) {
         std::iter_swap(poll_fds_.begin()+idx, poll_fds_.end()-1);
-        poll_items_[poll_fds_[idx].fd].idx = idx;
+        auto *pi = getPollItem(poll_fds_[idx].fd);
+        if (pi) {
+            pi->idx = idx;
+        }
     }
     poll_fds_.pop_back();
     return Result::OK;
@@ -175,16 +174,15 @@ Result VPoll::unregisterFd(SOCKET_FD fd)
 
 Result VPoll::updateFd(SOCKET_FD fd, KMEvent events)
 {
-    auto max_fd = SOCKET_FD(poll_items_.size() - 1);
-    if (fd < 0 || -1 == max_fd || fd > max_fd) {
-        KM_WARNTRACE("VPoll::updateFd, failed, fd="<<fd<<", max_fd="<<max_fd);
+    auto *poll_item = getPollItem(fd);
+    if (!poll_item || INVALID_FD == poll_item->fd) {
         return Result::INVALID_PARAM;
     }
-    if(poll_items_[fd].fd != fd) {
-        KM_WARNTRACE("VPoll::updateFd, failed, fd="<<fd<<", item_fd="<<poll_items_[fd].fd);
+    if(poll_item->fd != fd) {
+        KM_WARNTRACE("VPoll::updateFd, failed, fd="<<fd<<", item_fd="<<poll_item->fd);
         return Result::INVALID_PARAM;
     }
-    int idx = poll_items_[fd].idx;
+    int idx = poll_item->idx;
     if (idx < 0 || idx >= static_cast<int>(poll_fds_.size())) {
         KM_WARNTRACE("VPoll::updateFd, failed, index=" << idx);
         return Result::INVALID_STATE;
@@ -194,7 +192,7 @@ Result VPoll::updateFd(SOCKET_FD fd, KMEvent events)
         return Result::INVALID_PARAM;
     }
     poll_fds_[idx].events = get_events(events);
-    poll_items_[fd].events = events;
+    poll_item->events = events;
     return Result::OK;
 }
 
@@ -220,12 +218,12 @@ Result VPoll::wait(uint32_t wait_ms)
         if(poll_fds[i].revents) {
             --num_revts;
             auto fd = poll_fds[i].fd;
-            if(fd >= 0 && fd < static_cast<SOCKET_FD>(poll_items_.size())) {
-                auto &item = poll_items_[fd];
+            auto *poll_item = getPollItem(fd);
+            if(poll_item) {
                 auto revents = get_kuma_events(poll_fds[i].revents);
-                revents &= item.events;
-                if (revents && item.cb) {
-                    item.cb(fd, revents, nullptr, 0);
+                revents &= poll_item->events;
+                if (revents && poll_item->cb) {
+                    poll_item->cb(fd, revents, nullptr, 0);
                 }
             }
         }

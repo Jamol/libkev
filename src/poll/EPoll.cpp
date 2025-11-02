@@ -30,7 +30,7 @@ KEV_NS_BEGIN
 #define MAX_EPOLL_FDS   5000
 #define MAX_EVENT_NUM   500
 
-class EPoll : public IOPoll
+class EPoll : public IOPoll, public IOPollItem<PollItem>
 {
 public:
     EPoll();
@@ -125,20 +125,24 @@ Result EPoll::registerFd(SOCKET_FD fd, KMEvent events, IOCallback cb)
     if (fd < 0) {
         return Result::INVALID_PARAM;
     }
-    resizePollItems(fd);
+    auto *poll_item = getPollItem(fd, true);
+    if (!poll_item) {
+        KM_ERRTRACE("EPoll::registerFd no poll item, fd=" << fd << ", sz=" << getPollItemSize());
+        return Result::BUFFER_TOO_SMALL;
+    }
     int epoll_op = EPOLL_CTL_ADD;
-    if (INVALID_FD != poll_items_[fd].fd) {
+    if (INVALID_FD != poll_item->fd) {
         epoll_op = EPOLL_CTL_MOD;
     }
-    poll_items_[fd].fd = fd;
-    poll_items_[fd].events = events;
-    poll_items_[fd].cb = std::move(cb);
+    poll_item->fd = fd;
+    poll_item->events = events;
+    poll_item->cb = std::move(cb);
     struct epoll_event evt = {0};
     evt.data.ptr = (void*)(long)fd;
     evt.events = get_events(events);//EPOLLIN | EPOLLOUT | EPOLLERR | EPOLLHUP | EPOLLET;
     if(epoll_ctl(epoll_fd_, epoll_op, fd, &evt) < 0) {
         KM_ERRTRACE("EPoll::registerFd error, fd=" << fd << ", ev=" << evt.events << ", errno=" << errno);
-        poll_items_[fd].reset();
+        poll_item->reset();
         return Result::FAILED;
     }
     KM_INFOTRACE("EPoll::registerFd, fd=" << fd << ", ev=" << evt.events);
@@ -148,28 +152,21 @@ Result EPoll::registerFd(SOCKET_FD fd, KMEvent events, IOCallback cb)
 
 Result EPoll::unregisterFd(SOCKET_FD fd)
 {
-    int max_fd = int(poll_items_.size() - 1);
-    KM_INFOTRACE("EPoll::unregisterFd, fd="<<fd<<", max_fd="<<max_fd);
-    if (fd < 0 || fd > max_fd) {
-        KM_WARNTRACE("EPoll::unregisterFd, failed, max_fd=" << max_fd);
-        return Result::INVALID_PARAM;
-    }
+    auto sz = getPollItemSize();
+    KM_INFOTRACE("EPoll::unregisterFd, fd="<<fd<<", sz="<<sz);
     epoll_ctl(epoll_fd_, EPOLL_CTL_DEL, fd, NULL);
-    if(fd < max_fd) {
-        poll_items_[fd].reset();
-    } else if (fd == max_fd) {
-        poll_items_.pop_back();
-    }
+    clearPollItem(fd);
     return Result::OK;
 }
 
 Result EPoll::updateFd(SOCKET_FD fd, KMEvent events)
 {
-    if(fd < 0 || fd >= poll_items_.size() || INVALID_FD == poll_items_[fd].fd) {
-        return Result::FAILED;
+    auto *poll_item = getPollItem(fd);
+    if (!poll_item || INVALID_FD == poll_item->fd) {
+        return Result::INVALID_PARAM;
     }
     
-    if (poll_items_[fd].events == events) {
+    if (poll_item->events == events) {
         return Result::OK;
     }
     
@@ -180,7 +177,7 @@ Result EPoll::updateFd(SOCKET_FD fd, KMEvent events)
         KM_ERRTRACE("EPoll::updateFd error, fd="<<fd<<", errno="<<errno);
         return Result::FAILED;
     }
-    poll_items_[fd].events = events;
+    poll_item->events = events;
     return Result::OK;
 }
 
@@ -196,11 +193,12 @@ Result EPoll::wait(uint32_t wait_ms)
     } else {
         for (int i=0; i<nfds; ++i) {
             SOCKET_FD fd = (SOCKET_FD)(long)events[i].data.ptr;
-            if(fd < poll_items_.size()) {
+            auto *poll_item = getPollItem(fd);
+            if(poll_item) {
                 auto revents = get_kuma_events(events[i].events);
-                revents &= poll_items_[fd].events;
+                revents &= poll_item->events;
                 if (revents) {
-                    auto &cb = poll_items_[fd].cb;
+                    auto &cb = poll_item->cb;
                     if(cb) cb(fd, revents, nullptr, 0);
                 }
             }

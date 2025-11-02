@@ -136,7 +136,7 @@ struct io_uring_getevents_arg {
 	__u64	ts;
 };
 
-class IOUring final : public IOPoll
+class IOUring final : public IOPoll, public IOPollItem<PollItem>
 {
 public:
     IOUring();
@@ -387,36 +387,33 @@ Result IOUring::registerFd(SOCKET_FD fd, KMEvent events, IOCallback cb)
     if (fd < 0) {
         return Result::INVALID_PARAM;
     }
-    resizePollItems(fd);
-    poll_items_[fd].fd = fd;
-    poll_items_[fd].events = events;
-    poll_items_[fd].cb = std::move(cb);
+    auto *poll_item = getPollItem(fd, true);
+    if (!poll_item) {
+        KM_ERRTRACE("IOUring::registerFd no poll item, fd=" << fd << ", sz=" << getPollItemSize());
+        return Result::BUFFER_TOO_SMALL;
+    }
+    poll_item->fd = fd;
+    poll_item->events = events;
+    poll_item->cb = std::move(cb);
     KM_INFOTRACE("IOUring::registerFd, fd=" << fd << ", events=" << events);
     return Result::OK;
 }
 
 Result IOUring::unregisterFd(SOCKET_FD fd)
 {
-    int max_fd = int(poll_items_.size() - 1);
-    KM_INFOTRACE("IOUring::unregisterFd, fd="<<fd<<", max_fd="<<max_fd);
-    if (fd < 0 || -1 == max_fd || fd > max_fd) {
-        KM_WARNTRACE("IOUring::unregisterFd, failed, max_fd=" << max_fd);
-        return Result::INVALID_PARAM;
-    }
-    if(fd < max_fd) {
-        poll_items_[fd].reset();
-    } else if (fd == max_fd) {
-        poll_items_.pop_back();
-    }
+    auto sz = getPollItemSize();
+    KM_INFOTRACE("IOUring::unregisterFd, fd="<<fd<<", sz="<<sz);
+    clearPollItem(fd);
     return Result::OK;
 }
 
 Result IOUring::updateFd(SOCKET_FD fd, KMEvent events)
 {
-    if(fd < 0 || fd >= poll_items_.size() || INVALID_FD == poll_items_[fd].fd) {
-        return Result::FAILED;
+    auto *poll_item = getPollItem(fd);
+    if (!poll_item) {
+        return Result::INVALID_PARAM;
     }
-    poll_items_[fd].events = events;
+    poll_item->events = events;
     return Result::OK;
 }
 

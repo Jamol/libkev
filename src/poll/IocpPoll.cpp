@@ -37,7 +37,7 @@ extern LPFN_TRANSMITFILE transmit_file;
 extern LPFN_WSASENDMSG wsa_sendmsg;
 extern LPFN_WSARECVMSG wsa_recvmsg;
 
-class IocpPoll : public IOPoll
+class IocpPoll : public IOPoll, public IOPollItem<PollItem>
 {
 public:
     IocpPoll();
@@ -102,26 +102,20 @@ Result IocpPoll::registerFd(SOCKET_FD fd, KMEvent events, IOCallback cb)
         KM_ERRTRACE("IocpPoll::registerFd, CreateIoCompletionPort failed, err=" << GetLastError());
         return Result::POLL_ERROR;
     }
-    resizePollItems(fd);
-    poll_items_[fd].fd = fd;
-    poll_items_[fd].cb = std::move(cb);
+    auto *poll_item = getPollItem(fd, true);
+    if (!poll_item) {
+        KM_ERRTRACE("IocpPoll::registerFd no poll item, fd=" << fd << ", sz=" << getPollItemSize());
+        return Result::BUFFER_TOO_SMALL;
+    }
+    poll_item->fd = fd;
+    poll_item->cb = std::move(cb);
     return Result::OK;
 }
 
 Result IocpPoll::unregisterFd(SOCKET_FD fd)
 {
     KM_INFOTRACE("IocpPoll::unregisterFd, fd="<<fd);
-    SOCKET_FD max_fd = poll_items_.size() - 1;
-    if (fd < 0 || -1 == max_fd || fd > max_fd) {
-        KM_WARNTRACE("IocpPoll::unregisterFd, failed, max_fd=" << max_fd);
-        return Result::INVALID_PARAM;
-    }
-    if (fd == max_fd) {
-        poll_items_.pop_back();
-    } else {
-        poll_items_[fd].cb = nullptr;
-        poll_items_[fd].fd = INVALID_FD;
-    }
+    clearPollItem(fd);
     
     return Result::OK;
 }
@@ -287,8 +281,9 @@ Result IocpPoll::wait(uint32_t wait_ms)
             if (entries[i].lpOverlapped) {
                 SOCKET_FD fd = (SOCKET_FD)entries[i].lpCompletionKey;
 #if 0
-                if (fd < poll_items_.size()) {
-                    IOCallback &cb = poll_items_[fd].cb;
+                auto *poll_item = getPollItem(fd);
+                if (poll_item) {
+                    IOCallback &cb = poll_item->cb;
                     size_t io_size = entries[i].dwNumberOfBytesTransferred;
                     if (cb) cb(fd, 0, entries[i].lpOverlapped, io_size);
                 }
@@ -319,8 +314,9 @@ Result IocpPoll::wait(uint32_t wait_ms)
     auto success = GetQueuedCompletionStatus(hCompPort_, &bytes, &key, &pOverlapped, wait_ms);
     if (success) {
         SOCKET_FD fd = (SOCKET_FD)key;
-        if (fd < poll_items_.size()) {
-            IOCallback &cb = poll_items_[fd].cb;
+        auto *poll_item = getPollItem(fd);
+        if (poll_item) {
+            IOCallback &cb = poll_item->cb;
             size_t io_size = bytes;
             if (cb) cb(fd, 0, pOverlapped, io_size);
         }
