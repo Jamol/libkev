@@ -34,7 +34,25 @@ static void KevSocketCallBack(CFSocketRef s,
                               const void *data,
                               void *info);
 
-class RunLoopMac : public IOPoll
+struct SockItem
+{
+    void reset() {
+        fd = INVALID_FD;
+        sock = nil;
+        source = nil;
+        events = 0;
+        revents = 0;
+        cb = nullptr;
+    }
+    SOCKET_FD fd { INVALID_FD };
+    CFSocketRef sock {nil};
+    CFRunLoopSourceRef source {nil};
+    KMEvent events { 0 }; // kuma events registered
+    KMEvent revents { 0 }; // kuma events received
+    IOCallback cb;
+};
+
+class RunLoopMac : public IOPoll, public IOPollItem<SockItem>
 {
 public:
     ~RunLoopMac();
@@ -52,40 +70,11 @@ public:
 private:
     CFSocketCallBackType get_events(KMEvent kuma_events) const;
     KMEvent get_kuma_events(CFSocketCallBackType events) const;
-    void resizeSockItems(SOCKET_FD fd) {
-        auto count = sock_items_.size();
-        if (fd >= count) {
-            if(fd > count + 1024) {
-                sock_items_.resize(fd+1);
-            } else {
-                sock_items_.resize(count + 1024);
-            }
-        }
-    }
 
 private:
     CFRunLoopRef loopref_ = nil;
     CFRunLoopSourceRef notifier_ = nil;
     //CFRunLoopObserverRef observer_ = nil;
-
-    struct SockItem
-    {
-        void reset() {
-            fd = INVALID_FD;
-            sock = nil;
-            source = nil;
-            events = 0;
-            revents = 0;
-            cb = nullptr;
-        }
-        SOCKET_FD fd { INVALID_FD };
-        CFSocketRef sock {nil};
-        CFRunLoopSourceRef source {nil};
-        KMEvent events { 0 }; // kuma events registered
-        KMEvent revents { 0 }; // kuma events received
-        IOCallback cb;
-    };
-    std::vector<SockItem> sock_items_;
 };
 
 RunLoopMac::~RunLoopMac()
@@ -167,10 +156,6 @@ Result RunLoopMac::registerFd(SOCKET_FD fd, KMEvent events, IOCallback cb)
     if (fd < 0) {
         return Result::INVALID_PARAM;
     }
-    resizeSockItems(fd);
-    sock_items_[fd].fd = fd;
-    sock_items_[fd].events = events;
-    sock_items_[fd].cb = std::move(cb);
     
     auto cb_types = kCFSocketReadCallBack | kCFSocketWriteCallBack;
     CFSocketContext context = {0, this, nil, nil, nil};
@@ -180,6 +165,16 @@ Result RunLoopMac::registerFd(SOCKET_FD fd, KMEvent events, IOCallback cb)
         KM_ERRTRACE("RunLoop::registerFd error, fd=" << fd << ", ev=" << events);
         return Result::FAILED;
     }
+    auto *poll_item = getPollItem(fd, true);
+    if (!poll_item) {
+        KM_ERRTRACE("RunLoop::registerFd no poll item, fd=" << fd << ", sz=" << getPollItemSize());
+        CFSocketInvalidate(sock);
+        CFRelease(sock);
+        return Result::BUFFER_TOO_SMALL;
+    }
+    poll_item->fd = fd;
+    poll_item->events = events;
+    poll_item->cb = std::move(cb);
     auto flags = CFSocketGetSocketFlags (sock);
     flags |= kCFSocketAutomaticallyReenableReadCallBack;
     flags &= ~kCFSocketCloseOnInvalidate;
@@ -193,8 +188,8 @@ Result RunLoopMac::registerFd(SOCKET_FD fd, KMEvent events, IOCallback cb)
     }
     CFSocketDisableCallBacks(sock, disabled_types);
     auto sockSource = CFSocketCreateRunLoopSource(NULL, sock, 0);
-    sock_items_[fd].sock = sock;
-    sock_items_[fd].source = sockSource;
+    poll_item->sock = sock;
+    poll_item->source = sockSource;
     CFRunLoopAddSource(loopref_, sockSource, kCFRunLoopDefaultMode);
 
     KM_INFOTRACE("RunLoop::registerFd, fd=" << fd << ", ev=" << events);
@@ -204,16 +199,17 @@ Result RunLoopMac::registerFd(SOCKET_FD fd, KMEvent events, IOCallback cb)
 
 Result RunLoopMac::unregisterFd(SOCKET_FD fd)
 {
-    int max_fd = int(sock_items_.size() - 1);
-    KM_INFOTRACE("RunLoop::unregisterFd, fd="<<fd<<", max_fd="<<max_fd);
-    if (fd < 0 || fd > max_fd) {
-        KM_WARNTRACE("RunLoop::unregisterFd, failed, max_fd=" << max_fd);
+    auto sz = getPollItemSize();
+    KM_INFOTRACE("RunLoop::unregisterFd, fd="<<fd<<", sz="<<sz);
+    auto *poll_item = getPollItem(fd);
+    if (!poll_item) {
+        KM_ERRTRACE("RunLoop::unregisterFd failed, fd=" << fd);
         return Result::INVALID_PARAM;
     }
-    auto sock = sock_items_[fd].sock;
-    auto sockSource = sock_items_[fd].source;
-    sock_items_[fd].sock = nil;
-    sock_items_[fd].source = nil;
+    auto sock = poll_item->sock;
+    auto sockSource = poll_item->source;
+    poll_item->sock = nil;
+    poll_item->source = nil;
     if (sockSource) {
         CFRunLoopRemoveSource(loopref_, sockSource, kCFRunLoopDefaultMode);
         CFRelease(sockSource);
@@ -224,40 +220,36 @@ Result RunLoopMac::unregisterFd(SOCKET_FD fd)
         CFRelease(sock);
     }
     //}
-    if(fd < max_fd) {
-        sock_items_[fd].reset();
-    } else if (fd == max_fd) {
-        sock_items_.pop_back();
-    }
+    clearPollItem(fd);
     return Result::OK;
 }
 
 Result RunLoopMac::updateFd(SOCKET_FD fd, KMEvent events)
 {
-    if(fd < 0 || fd >= sock_items_.size() ||
-            INVALID_FD == sock_items_[fd].fd ||
-            sock_items_[fd].sock == nil) {
-        return Result::FAILED;
+    auto *poll_item = getPollItem(fd);
+    if (!poll_item || INVALID_FD == poll_item->fd || poll_item->sock == nil) {
+        KM_ERRTRACE("RunLoop::updateFd failed, fd=" << fd);
+        return Result::INVALID_PARAM;
     }
     CFSocketCallBackType disabled_types = kCFSocketNoCallBack;
     CFSocketCallBackType enabled_types = kCFSocketNoCallBack;
-    if ((events & kEventRead) && !(sock_items_[fd].events & kEventRead)) {
+    if ((events & kEventRead) && !(poll_item->events & kEventRead)) {
         enabled_types |= kCFSocketReadCallBack;
-    } else if (!(events & kEventRead) && (sock_items_[fd].events & kEventRead)) {
+    } else if (!(events & kEventRead) && (poll_item->events & kEventRead)) {
         disabled_types |= kCFSocketReadCallBack;
     }
-    if ((events & kEventWrite) && !(sock_items_[fd].events & kEventWrite)) {
+    if ((events & kEventWrite) && !(poll_item->events & kEventWrite)) {
         enabled_types |= kCFSocketWriteCallBack;
-    } else if (!(events & kEventWrite) && (sock_items_[fd].events & kEventWrite)) {
+    } else if (!(events & kEventWrite) && (poll_item->events & kEventWrite)) {
         disabled_types |= kCFSocketWriteCallBack;
     }
     if (disabled_types != kCFSocketNoCallBack) {
-        CFSocketDisableCallBacks(sock_items_[fd].sock, disabled_types);
+        CFSocketDisableCallBacks(poll_item->sock, disabled_types);
     }
     if (enabled_types != kCFSocketNoCallBack) {
-        CFSocketEnableCallBacks(sock_items_[fd].sock, enabled_types);
+        CFSocketEnableCallBacks(poll_item->sock, enabled_types);
     }
-    sock_items_[fd].events = events;
+    poll_item->events = events;
     return Result::OK;
 }
 
@@ -285,11 +277,12 @@ void RunLoopMac::notify()
 void RunLoopMac::onSocketCallBack(CFSocketRef s, CFSocketCallBackType type)
 {
     SOCKET_FD fd = CFSocketGetNative(s);
-    if(fd < sock_items_.size()) {
+    auto *poll_item = getPollItem(fd);
+    if(poll_item) {
         auto revents = get_kuma_events(type);
-        revents &= sock_items_[fd].events;
+        revents &= poll_item->events;
         if (revents) {
-            auto &cb = sock_items_[fd].cb;
+            auto &cb = poll_item->cb;
             if(cb) cb(fd, revents, nullptr, 0);
         }
     }

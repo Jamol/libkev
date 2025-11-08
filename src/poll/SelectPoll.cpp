@@ -206,7 +206,7 @@ private:
 };
 #endif
 
-class SelectPoll : public IOPoll
+class SelectPoll : public IOPoll, public IOPollItem<PollItem>
 {
 public:
     SelectPoll();
@@ -250,7 +250,6 @@ SelectPoll::SelectPoll()
 SelectPoll::~SelectPoll()
 {
     poll_fds_.clear();
-    poll_items_.clear();
 }
 
 bool SelectPoll::init()
@@ -271,41 +270,45 @@ Result SelectPoll::registerFd(SOCKET_FD fd, KMEvent events, IOCallback cb)
         return Result::INVALID_PARAM;
     }
     KM_INFOTRACE("SelectPoll::registerFd, fd=" << fd);
-    resizePollItems(fd);
-    if (INVALID_FD == poll_items_[fd].fd || -1 == poll_items_[fd].idx) {
-        PollFD pfd{fd, events};
-        poll_fds_.push_back(pfd);
-        poll_items_[fd].idx = static_cast<int>(poll_fds_.size() - 1);
+    auto *poll_item = getPollItem(fd, true);
+    if (!poll_item) {
+        KM_ERRTRACE("SelectPoll::registerFd no poll item, fd=" << fd << ", sz=" << getPollItemSize());
+        return Result::BUFFER_TOO_SMALL;
     }
-    poll_items_[fd].fd = fd;
-    poll_items_[fd].events = events;
-    poll_items_[fd].cb = std::move(cb);
+    if (INVALID_FD == poll_item->fd || -1 == poll_item->idx) {
+        PollFD pfd{fd, events};
+        poll_fds_.emplace_back(pfd);
+        poll_item->idx = static_cast<int>(poll_fds_.size() - 1);
+    }
+    poll_item->fd = fd;
+    poll_item->events = events;
+    poll_item->cb = std::move(cb);
     updateFdSet(fd, events);
     return Result::OK;
 }
 
 Result SelectPoll::unregisterFd(SOCKET_FD fd)
 {
-    auto max_fd = static_cast<SOCKET_FD>(poll_items_.size() - 1);
-    KM_INFOTRACE("SelectPoll::unregisterFd, fd="<<fd<<", max_fd="<<max_fd);
-    if (fd < 0 || fd > max_fd) {
-        KM_WARNTRACE("SelectPoll::unregisterFd, failed, max_fd=" << max_fd);
+    auto sz = getPollItemSize();
+    KM_INFOTRACE("SelectPoll::unregisterFd, fd="<<fd<<", sz="<<sz);
+    auto *poll_item = getPollItem(fd);
+    if (!poll_item) {
+        KM_ERRTRACE("SelectPoll::unregisterFd failed, fd=" << fd);
         return Result::INVALID_PARAM;
     }
     updateFdSet(fd, 0);
-    int idx = poll_items_[fd].idx;
-    if (fd < max_fd) {
-        poll_items_[fd].reset();
-    } else if (fd == max_fd) {
-        poll_items_.pop_back();
-    }
+    int idx = poll_item->idx;
+    clearPollItem(fd);
     int last_idx = static_cast<int>(poll_fds_.size() - 1);
     if (idx > last_idx || idx == -1) {
         return Result::OK;
     }
     if (idx != last_idx) {
         std::iter_swap(poll_fds_.begin() + idx, poll_fds_.end() - 1);
-        poll_items_[poll_fds_[idx].fd].idx = idx;
+        auto *pi = getPollItem(poll_fds_[idx].fd);
+        if (pi) {
+            pi->idx = idx;
+        }
     }
     poll_fds_.pop_back();
     return Result::OK;
@@ -313,16 +316,15 @@ Result SelectPoll::unregisterFd(SOCKET_FD fd)
 
 Result SelectPoll::updateFd(SOCKET_FD fd, KMEvent events)
 {
-    auto max_fd = static_cast<SOCKET_FD>(poll_items_.size() - 1);
-    if (fd < 0 || max_fd == -1 || fd > max_fd) {
-        KM_WARNTRACE("SelectPoll::updateFd, failed, fd="<<fd<<", max_fd="<<max_fd);
+    auto *poll_item = getPollItem(fd);
+    if (!poll_item || INVALID_FD == poll_item->fd) {
         return Result::INVALID_PARAM;
     }
-    if (poll_items_[fd].fd != fd) {
-        KM_WARNTRACE("SelectPoll::updateFd, failed, fd="<<fd<<", item_fd="<<poll_items_[fd].fd);
+    if (poll_item->fd != fd) {
+        KM_WARNTRACE("SelectPoll::updateFd, failed, fd="<<fd<<", item_fd="<<poll_item->fd);
         return Result::INVALID_PARAM;
     }
-    int idx = poll_items_[fd].idx;
+    int idx = poll_item->idx;
     if (idx < 0 || idx >= static_cast<int>(poll_fds_.size())) {
         KM_WARNTRACE("SelectPoll::updateFd, failed, index="<<idx);
         return Result::INVALID_STATE;
@@ -332,7 +334,7 @@ Result SelectPoll::updateFd(SOCKET_FD fd, KMEvent events)
         return Result::INVALID_PARAM;
     }
     poll_fds_[idx].events = events;
-    poll_items_[fd].events = events;
+    poll_item->events = events;
     updateFdSet(fd, events);
     return Result::OK;
 }
@@ -401,10 +403,11 @@ Result SelectPoll::wait(uint32_t wait_ms)
             revents |= kEventError;
             --nready;
         }
-        if (fd < poll_items_.size()) {
-            revents &= poll_items_[fd].events;
+        auto *poll_item = getPollItem(fd);
+        if (poll_item) {
+            revents &= poll_item->events;
             if (revents) {
-                auto& cb = poll_items_[fd].cb;
+                auto& cb = poll_item->cb;
                 if (cb) cb(fd, revents, nullptr, 0);
             }
         }

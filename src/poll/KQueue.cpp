@@ -31,7 +31,7 @@ KEV_NS_BEGIN
 
 #define MAX_EVENT_NUM   256
 
-class KQueue : public IOPoll
+class KQueue : public IOPoll, public IOPollItem<PollItem>
 {
 public:
     KQueue();
@@ -109,12 +109,16 @@ Result KQueue::registerFd(SOCKET_FD fd, KMEvent events, IOCallback cb)
     if (fd < 0) {
         return Result::INVALID_PARAM;
     }
-    resizePollItems(fd);
-    poll_items_[fd].fd = fd;
-    poll_items_[fd].cb = std::move(cb);
+    auto *poll_item = getPollItem(fd, true);
+    if (!poll_item) {
+        KM_ERRTRACE("KQueue::registerFd no poll item, fd=" << fd << ", sz=" << getPollItemSize());
+        return Result::BUFFER_TOO_SMALL;
+    }
+    poll_item->fd = fd;
+    poll_item->cb = std::move(cb);
     auto ret = updateFd(fd, events);
     if (ret != Result::OK) {
-        poll_items_[fd].reset();
+        poll_item->reset();
     }
     KM_INFOTRACE("KQueue::registerFd, fd="<<fd<<", ev="<<events<<", ret="<<(int)ret);
     return ret;
@@ -122,51 +126,49 @@ Result KQueue::registerFd(SOCKET_FD fd, KMEvent events, IOCallback cb)
 
 Result KQueue::unregisterFd(SOCKET_FD fd)
 {
-    int max_fd = int(poll_items_.size() - 1);
-    KM_INFOTRACE("KQueue::unregisterFd, fd="<<fd<<", max_fd="<<max_fd);
-    if (fd < 0 || fd > max_fd) {
-        KM_WARNTRACE("KQueue::unregisterFd, failed, max_fd="<<max_fd);
+    auto sz = getPollItemSize();
+    KM_INFOTRACE("KQueue::unregisterFd, fd="<<fd<<", sz="<<sz);
+    auto *poll_item = getPollItem(fd);
+    if (!poll_item) {
+        KM_ERRTRACE("KQueue::unregisterFd failed, fd=" << fd);
         return Result::INVALID_PARAM;
     }
     struct kevent kevents[2];
     int nchanges = 0;
-    if (poll_items_[fd].events & kEventRead) {
+    if (poll_item->events & kEventRead) {
         EV_SET(&kevents[nchanges++], fd, EVFILT_READ, EV_DELETE, 0, 0, 0);
     }
-    if (poll_items_[fd].events & kEventWrite) {
+    if (poll_item->events & kEventWrite) {
         EV_SET(&kevents[nchanges++], fd, EVFILT_WRITE, EV_DELETE, 0, 0, 0);
     }
     if (nchanges) {
         ::kevent(kqueue_fd_, kevents, nchanges, 0, 0, 0);
     }
-    if(fd < max_fd) {
-        poll_items_[fd].reset();
-    } else if (fd == max_fd) {
-        poll_items_.pop_back();
-    }
+    clearPollItem(fd);
     return Result::OK;
 }
 
 Result KQueue::updateFd(SOCKET_FD fd, KMEvent events)
 {
-    if(fd < 0 || fd >= poll_items_.size() || INVALID_FD == poll_items_[fd].fd) {
+    auto *poll_item = getPollItem(fd);
+    if (!poll_item || INVALID_FD == poll_item->fd) {
         return Result::INVALID_PARAM;
     }
     
     struct kevent kevents[2];
     int nchanges = 0;
-    if (!!(poll_items_[fd].events & kEventRead) && !(events & kEventRead)) {
+    if (!!(poll_item->events & kEventRead) && !(events & kEventRead)) {
         EV_SET(&kevents[nchanges++], fd, EVFILT_READ, EV_DELETE, 0, 0, 0);
-        poll_items_[fd].events &= ~kEventRead;
+        poll_item->events &= ~kEventRead;
     }
-    if (!!(poll_items_[fd].events & kEventWrite) && !(events & kEventWrite)) {
+    if (!!(poll_item->events & kEventWrite) && !(events & kEventWrite)) {
         EV_SET(&kevents[nchanges++], fd, EVFILT_WRITE, EV_DELETE, 0, 0, 0);
-        poll_items_[fd].events &= ~kEventWrite;
+        poll_item->events &= ~kEventWrite;
     }
     if (nchanges) { // remove events
         ::kevent(kqueue_fd_, kevents, nchanges, 0, 0, 0);
     }
-    if (poll_items_[fd].events == events) {
+    if (poll_item->events == events) {
         return Result::OK;
     }
     nchanges = 0;
@@ -184,7 +186,7 @@ Result KQueue::updateFd(SOCKET_FD fd, KMEvent events)
         KM_ERRTRACE("KQueue::updateFd error, fd="<<fd<<", errno="<<errno);
         return Result::FAILED;
     }
-    poll_items_[fd].events = events;
+    poll_item->events = events;
     //KM_INFOTRACE("KQueue::updateFd, fd="<<fd<<", ev="<<events);
     return Result::OK;
 }
@@ -206,10 +208,10 @@ Result KQueue::wait(uint32_t wait_ms)
     } else {
         std::pair<SOCKET_FD, size_t> fds[MAX_EVENT_NUM];
         int nfds = 0;
-        int max_fd = int(poll_items_.size() - 1);
         for (int i=0; i<nevents; ++i) {
             SOCKET_FD fd = (SOCKET_FD)kevents[i].ident;
-            if(fd >= 0 && fd <= max_fd) {
+            auto *poll_item = getPollItem(fd);
+            if(poll_item) {
                 KMEvent revents = 0;
                 size_t io_size = 0;
                 if (kevents[i].filter == EVFILT_READ) {
@@ -230,21 +232,22 @@ Result KQueue::wait(uint32_t wait_ms)
                 if (!revents) {
                     continue;
                 }
-                if (poll_items_[fd].revents == 0) {
+                if (poll_item->revents == 0) {
                     fds[nfds++] = {fd, io_size};
                 }
-                poll_items_[fd].revents = revents;
+                poll_item->revents = revents;
             }
         }
         for (int i=0; i<nfds; ++i) {
             SOCKET_FD fd = fds[i].first;
-            if (fd < poll_items_.size()) {
-                uint32_t revents = poll_items_[fd].revents;
-                poll_items_[fd].revents = 0;
+            auto *poll_item = getPollItem(fd);
+            if (poll_item) {
+                uint32_t revents = poll_item->revents;
+                poll_item->revents = 0;
                 // in case a processed event may modify this event
-                revents &= poll_items_[fd].events;
+                revents &= poll_item->events;
                 if (revents) {
-                    auto &cb = poll_items_[fd].cb;
+                    auto &cb = poll_item->cb;
                     if(cb) cb(fd, revents, nullptr, fds[i].second);
                 }
             }

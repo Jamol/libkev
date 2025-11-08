@@ -19,6 +19,7 @@
 #include "kevdefs.h"
 #include "kevops.h"
 #include "utils/utils.h"
+#include "utils/kmtrace.h"
 
 #ifdef KUMA_OS_WIN
 # include <Ws2tcpip.h>
@@ -66,28 +67,12 @@
 #include <stdlib.h>
 #include <stdint.h>
 
-#include <map>
-#include <list>
 #include <vector>
+#include <unordered_map>
+
+//#define IOPOLL_ITEMS_USE_MAP
 
 KEV_NS_BEGIN
-
-struct PollItem
-{
-    void reset() {
-        fd = INVALID_FD;
-        idx = -1;
-        events = 0;
-        revents = 0;
-        cb = nullptr;
-    }
-    SOCKET_FD fd { INVALID_FD };
-    int idx { -1 };
-    KMEvent events { 0 }; // kuma events registered
-    KMEvent revents { 0 }; // kuma events received
-    IOCallback cb;
-};
-typedef std::vector<PollItem>   PollItemVector;
 
 class IOPoll
 {
@@ -107,9 +92,50 @@ public:
     {
         return Result::NOT_SUPPORTED;
     }
-    
+};
+
+struct PollItem
+{
+    void reset() {
+        fd = INVALID_FD;
+        idx = -1;
+        events = 0;
+        revents = 0;
+        cb = nullptr;
+    }
+    SOCKET_FD fd { INVALID_FD };
+    int idx { -1 };
+    KMEvent events { 0 }; // kuma events registered
+    KMEvent revents { 0 }; // kuma events received
+    IOCallback cb;
+};
+
+template<typename ItemType>
+class IOPollItem
+{
 protected:
-    void resizePollItems(SOCKET_FD fd) {
+#ifdef IOPOLL_ITEMS_USE_MAP
+    using PollItems = std::unordered_map<SOCKET_FD, ItemType>;
+    ItemType* getPollItem(SOCKET_FD fd, bool create_if_not_exist = false) {
+        auto it = poll_items_.find(fd);
+        if (it == poll_items_.end()) {
+            if (!create_if_not_exist) {
+                return nullptr;
+            }
+            auto res = poll_items_.emplace(fd, ItemType{});
+            if (!res.second) {
+                return nullptr;
+            }
+            it = res.first;
+        }
+        return &it->second;
+    }
+    void clearPollItem(SOCKET_FD fd) {
+        poll_items_.erase(fd);
+    }
+#else
+    using PollItems = std::vector<ItemType>;
+    bool resizePollItem(SOCKET_FD fd) {
         auto count = poll_items_.size();
         if (fd >= count) {
             if(fd > count + 1024) {
@@ -117,9 +143,41 @@ protected:
             } else {
                 poll_items_.resize(count + 1024);
             }
+            if (fd >= static_cast<SOCKET_FD>(poll_items_.size())) {
+                return false;
+            }
+        }
+        return true;
+    }
+    ItemType* getPollItem(SOCKET_FD fd, bool create_if_not_exist = false) {
+        if (create_if_not_exist) {
+            resizePollItem(fd);
+        }
+        if (fd < 0 || fd >= static_cast<SOCKET_FD>(poll_items_.size())) {
+            return nullptr;
+        }
+        return &poll_items_[fd];
+    }
+    void clearPollItem(SOCKET_FD fd) {
+        auto max_fd = static_cast<SOCKET_FD>(poll_items_.size() - 1);
+        if (fd < 0 || fd > max_fd) {
+            KM_WARNTRACE("IOPoll::clearPollItem, failed, fd=" << fd << ", max_fd=" << max_fd);
+            return;
+        }
+        if(fd < max_fd) {
+            poll_items_[fd].reset();
+        } else if (fd == max_fd) {
+            poll_items_.pop_back();
         }
     }
-    PollItemVector  poll_items_;
+#endif
+
+    size_t getPollItemSize() const {
+        return poll_items_.size();
+    }
+
+private:
+    PollItems  poll_items_;
 };
 
 KEV_NS_END

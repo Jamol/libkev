@@ -28,9 +28,9 @@ KEV_NS_BEGIN
 
 #define WM_POLLER_NOTIFY		WM_USER+101
 
-#define KM_WIN_CLASS_NAME		"kev_win_class_name"
+#define KEV_WIN_CLASS_NAME		L"kev_win_class_name"
 
-class WinPoll : public IOPoll
+class WinPoll : public IOPoll, public IOPollItem<PollItem>
 {
 public:
     WinPoll();
@@ -42,7 +42,7 @@ public:
     Result updateFd(SOCKET_FD fd, uint32_t events);
     Result wait(uint32_t wait_ms);
     void notify();
-    PollType getType() const { return PollType::WIN; }
+    PollType getType() const { return PollType::WINEV; }
     bool isLevelTriggered() const { return false; }
 
 public:
@@ -53,12 +53,9 @@ public:
 private:
     uint32_t get_events(uint32_t kuma_events) const;
     uint32_t get_kuma_events(uint32_t events) const;
-    void resizePollItems(SOCKET_FD fd);
 
 private:
     HWND            hwnd_;
-    PollItemVector  poll_items_;
-
 };
 
 WinPoll::WinPoll()
@@ -124,19 +121,16 @@ uint32_t WinPoll::get_kuma_events(uint32_t events) const
     return ev;
 }
 
-void WinPoll::resizePollItems(SOCKET_FD fd)
-{
-    if (fd >= poll_items_.size()) {
-        poll_items_.resize(fd+1);
-    }
-}
-
 Result WinPoll::registerFd(SOCKET_FD fd, uint32_t events, IOCallback cb)
 {
     KM_INFOTRACE("WinPoll::registerFd, fd=" << fd << ", events=" << events);
-    resizePollItems(fd);
-    poll_items_[fd].fd = fd;
-    poll_items_[fd].cb = std::move(cb);
+    auto *poll_item = getPollItem(fd, true);
+    if (!poll_item) {
+        KM_ERRTRACE("WinPoll::registerFd no poll item, fd=" << fd << ", sz=" << getPollItemSize());
+        return Result::BUFFER_TOO_SMALL;
+    }
+    poll_item->fd = fd;
+    poll_item->cb = std::move(cb);
     WSAAsyncSelect(fd, hwnd_, WM_SOCKET_NOTIFY, get_events(events) | FD_CONNECT);
     return Result::OK;
 }
@@ -144,30 +138,19 @@ Result WinPoll::registerFd(SOCKET_FD fd, uint32_t events, IOCallback cb)
 Result WinPoll::unregisterFd(SOCKET_FD fd)
 {
     KM_INFOTRACE("WinPoll::unregisterFd, fd="<<fd);
-    SOCKET_FD max_fd = poll_items_.size() - 1;
-    if (fd < 0 || -1 == max_fd || fd > max_fd) {
-        KM_WARNTRACE("WinPoll::unregisterFd, failed, max_fd=" << max_fd);
-        return Result::INVALID_PARAM;
-    }
-    if (fd == max_fd) {
-        poll_items_.pop_back();
-    } else {
-        poll_items_[fd].cb = nullptr;
-        poll_items_[fd].fd = INVALID_FD;
-    }
+    clearPollItem(fd);
     WSAAsyncSelect(fd, hwnd_, 0, 0);
     return Result::OK;
 }
 
 Result WinPoll::updateFd(SOCKET_FD fd, uint32_t events)
 {
-    SOCKET_FD max_fd = poll_items_.size() - 1;
-    if (fd < 0 || -1 == max_fd || fd > max_fd) {
-        KM_WARNTRACE("WinPoll::updateFd, failed, fd="<<fd<<", max_fd=" << max_fd);
+    auto *poll_item = getPollItem(fd);
+    if (!poll_item || INVALID_FD == poll_item->fd) {
         return Result::INVALID_PARAM;
     }
-    if(poll_items_[fd].fd != fd) {
-        KM_WARNTRACE("WinPoll::updateFd, failed, fd="<<fd<<", fd1="<<poll_items_[fd].fd);
+    if(poll_item->fd != fd) {
+        KM_WARNTRACE("WinPoll::updateFd, failed, fd="<<fd<<", fd1="<<poll_item->fd);
         return Result::INVALID_PARAM;
     }
     return Result::OK;
@@ -242,13 +225,13 @@ static void initWinClass()
     wc.hCursor = 0;
     wc.hbrBackground = 0;
     wc.lpszMenuName = NULL;
-    wc.lpszClassName = KM_WIN_CLASS_NAME;
+    wc.lpszClassName = KEV_WIN_CLASS_NAME;
     RegisterClass(&wc);
 }
 
 static void uninitWinClass()
 {
-    UnregisterClass(KM_WIN_CLASS_NAME, NULL);
+    UnregisterClass(KEV_WIN_CLASS_NAME, NULL);
 }
 
 //WBX_Init_Object g_init_obj(poller_load, poller_unload);

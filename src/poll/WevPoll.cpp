@@ -29,7 +29,7 @@ const size_t kBatchSize = 16;
 
 KEV_NS_BEGIN
 
-class WevPoll : public IOPoll
+class WevPoll : public IOPoll, public IOPollItem<PollItem>
 {
 public:
     WevPoll();
@@ -90,7 +90,6 @@ WevPoll::WevPoll()
 WevPoll::~WevPoll()
 {
     poll_fds_.clear();
-    poll_items_.clear();
     for (auto &h : events_) {
         if (h != WSA_INVALID_EVENT) {
             WSACloseEvent(h);
@@ -139,13 +138,14 @@ Result WevPoll::registerFd(SOCKET_FD fd, KMEvent events, IOCallback cb)
     if (fd < 0) {
         return Result::INVALID_PARAM;
     }
-    resizePollItems(fd);
+    auto *poll_item = getPollItem(fd, true);
+    if (!poll_item) {
+        KM_ERRTRACE("WevPoll::registerFd no poll item, fd=" << fd << ", sz=" << getPollItemSize());
+        return Result::BUFFER_TOO_SMALL;
+    }
     int idx = -1;
-    if (INVALID_FD == poll_items_[fd].fd || -1 == poll_items_[fd].idx) { // new
-        pollfd pfd;
-        pfd.fd = fd;
-        pfd.events = get_events(events);
-        pfd.revents = 0;
+    if (INVALID_FD == poll_item->fd || -1 == poll_item->idx) { // new
+        pollfd pfd{fd, (short)get_events(events), 0};
         {
             int type = SOCK_STREAM;
             socklen_t len = sizeof(type);
@@ -161,12 +161,11 @@ Result WevPoll::registerFd(SOCKET_FD fd, KMEvent events, IOCallback cb)
         WSAEventSelect(fd, events_[ev_idx], pfd.events);
         event_fds_[ev_idx].emplace_back(fd);
         poll_fds_.emplace_back(std::pair<pollfd, int>{pfd, ev_idx});
-        idx = static_cast<int>(poll_fds_.size() - 1);
-        poll_items_[fd].idx = idx;
+        poll_item->idx = static_cast<int>(poll_fds_.size() - 1);
     }
-    poll_items_[fd].fd = fd;
-    poll_items_[fd].events = events;
-    poll_items_[fd].cb = std::move(cb);
+    poll_item->fd = fd;
+    poll_item->events = events;
+    poll_item->cb = std::move(cb);
     KM_INFOTRACE("WevPoll::registerFd, fd="<<fd<<", events="<<events<<", index="<<idx);
     
     return Result::OK;
@@ -174,18 +173,15 @@ Result WevPoll::registerFd(SOCKET_FD fd, KMEvent events, IOCallback cb)
 
 Result WevPoll::unregisterFd(SOCKET_FD fd)
 {
-    auto max_fd = SOCKET_FD(poll_items_.size() - 1);
-    KM_INFOTRACE("WevPoll::unregisterFd, fd="<<fd<<", max_fd="<<max_fd);
-    if (fd < 0 || -1 == max_fd || fd > max_fd) {
-        KM_WARNTRACE("WevPoll::unregisterFd, failed, max_fd="<<max_fd);
+    auto sz = getPollItemSize();
+    KM_INFOTRACE("WevPoll::unregisterFd, fd="<<fd<<", sz="<<sz);
+    auto *poll_item = getPollItem(fd);
+    if (!poll_item) {
+        KM_ERRTRACE("WevPoll::unregisterFd failed, fd=" << fd);
         return Result::INVALID_PARAM;
     }
-    int idx = poll_items_[fd].idx;
-    if(fd < max_fd) {
-        poll_items_[fd].reset();
-    } else if (fd == max_fd) {
-        poll_items_.pop_back();
-    }
+    int idx = poll_item->idx;
+    clearPollItem(fd);
     
     int last_idx = static_cast<int>(poll_fds_.size() - 1);
     if (idx > last_idx || -1 == idx) {
@@ -202,7 +198,10 @@ Result WevPoll::unregisterFd(SOCKET_FD fd)
     poll_fds_[idx].second = -1;
     if (idx != last_idx) {
         std::iter_swap(poll_fds_.begin()+idx, poll_fds_.end()-1);
-        poll_items_[poll_fds_[idx].first.fd].idx = idx;
+        auto *pi = getPollItem(poll_fds_[idx].first.fd);
+        if (pi) {
+            pi->idx = idx;
+        }
     }
     poll_fds_.pop_back();
     return Result::OK;
@@ -210,16 +209,15 @@ Result WevPoll::unregisterFd(SOCKET_FD fd)
 
 Result WevPoll::updateFd(SOCKET_FD fd, KMEvent events)
 {
-    auto max_fd = SOCKET_FD(poll_items_.size() - 1);
-    if (fd < 0 || -1 == max_fd || fd > max_fd) {
-        KM_WARNTRACE("WevPoll::updateFd, failed, fd="<<fd<<", max_fd="<<max_fd);
+    auto *poll_item = getPollItem(fd);
+    if (!poll_item || INVALID_FD == poll_item->fd) {
         return Result::INVALID_PARAM;
     }
-    if(poll_items_[fd].fd != fd) {
-        KM_WARNTRACE("WevPoll::updateFd, failed, fd="<<fd<<", item_fd="<<poll_items_[fd].fd);
+    if(poll_item->fd != fd) {
+        KM_WARNTRACE("WevPoll::updateFd, failed, fd="<<fd<<", item_fd="<<poll_item->fd);
         return Result::INVALID_PARAM;
     }
-    int idx = poll_items_[fd].idx;
+    int idx = poll_item->idx;
     if (idx < 0 || idx >= static_cast<int>(poll_fds_.size())) {
         KM_WARNTRACE("WevPoll::updateFd, failed, index=" << idx);
         return Result::INVALID_STATE;
@@ -229,7 +227,7 @@ Result WevPoll::updateFd(SOCKET_FD fd, KMEvent events)
         return Result::INVALID_PARAM;
     }
     poll_fds_[idx].first.events = get_events(events);
-    poll_items_[fd].events = events;
+    poll_item->events = events;
     int ev_idx = poll_fds_[idx].second;
     if (ev_idx > 0 && ev_idx < WSA_MAXIMUM_WAIT_EVENTS) {
         WSAEventSelect(fd, events_[ev_idx], poll_fds_[idx].first.events);
@@ -273,7 +271,8 @@ Result WevPoll::wait(uint32_t wait_ms)
 void WevPoll::onSocketEvent(WSAEVENT h, const std::vector<SOCKET_FD> &fds)
 {
     for (auto fd : fds) {
-        if (fd >= poll_items_.size()) {
+        auto *poll_item = getPollItem(fd);
+        if (!poll_item) {
             continue;
         }
         WSANETWORKEVENTS net_events;
@@ -314,10 +313,9 @@ void WevPoll::onSocketEvent(WSAEVENT h, const std::vector<SOCKET_FD> &fds)
                             <<", err="<<net_events.iErrorCode[FD_CLOSE_BIT]);
             }
         }
-        auto &item = poll_items_[fd];
-        revents &= item.events;
-        if (revents != 0 && item.cb) {
-            item.cb(fd, revents, nullptr, 0);
+        revents &= poll_item->events;
+        if (revents != 0 && poll_item->cb) {
+            poll_item->cb(fd, revents, nullptr, 0);
         }
     }
 }
