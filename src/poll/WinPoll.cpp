@@ -150,7 +150,7 @@ Result WinPoll::updateFd(SOCKET_FD fd, uint32_t events)
         return Result::INVALID_PARAM;
     }
     if(poll_item->fd != fd) {
-        KM_WARNTRACE("WinPoll::updateFd, failed, fd="<<fd<<", fd1="<<poll_item->fd);
+        KLOGW("WinPoll::updateFd, failed, fd="<<fd<<", fd1="<<poll_item->fd);
         return Result::INVALID_PARAM;
     }
     return Result::OK;

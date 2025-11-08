@@ -179,16 +179,16 @@ Result VPoll::updateFd(SOCKET_FD fd, KMEvent events)
         return Result::INVALID_PARAM;
     }
     if(poll_item->fd != fd) {
-        KM_WARNTRACE("VPoll::updateFd, failed, fd="<<fd<<", item_fd="<<poll_item->fd);
+        KLOGW("VPoll::updateFd, failed, fd="<<fd<<", item_fd="<<poll_item->fd);
         return Result::INVALID_PARAM;
     }
     int idx = poll_item->idx;
     if (idx < 0 || idx >= static_cast<int>(poll_fds_.size())) {
-        KM_WARNTRACE("VPoll::updateFd, failed, index=" << idx);
+        KLOGW("VPoll::updateFd, failed, index=" << idx);
         return Result::INVALID_STATE;
     }
     if(poll_fds_[idx].fd != fd) {
-        KM_WARNTRACE("VPoll::updateFd, failed, fd="<<fd<<", pfds_fd="<<poll_fds_[idx].fd);
+        KLOGW("VPoll::updateFd, failed, fd="<<fd<<", pfds_fd="<<poll_fds_[idx].fd);
         return Result::INVALID_PARAM;
     }
     poll_fds_[idx].events = get_events(events);

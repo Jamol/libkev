@@ -214,16 +214,16 @@ Result WevPoll::updateFd(SOCKET_FD fd, KMEvent events)
         return Result::INVALID_PARAM;
     }
     if(poll_item->fd != fd) {
-        KM_WARNTRACE("WevPoll::updateFd, failed, fd="<<fd<<", item_fd="<<poll_item->fd);
+        KLOGW("WevPoll::updateFd, failed, fd="<<fd<<", item_fd="<<poll_item->fd);
         return Result::INVALID_PARAM;
     }
     int idx = poll_item->idx;
     if (idx < 0 || idx >= static_cast<int>(poll_fds_.size())) {
-        KM_WARNTRACE("WevPoll::updateFd, failed, index=" << idx);
+        KLOGW("WevPoll::updateFd, failed, index=" << idx);
         return Result::INVALID_STATE;
     }
     if(poll_fds_[idx].first.fd != fd) {
-        KM_WARNTRACE("WevPoll::updateFd, failed, fd="<<fd<<", pfds_fd="<<poll_fds_[idx].first.fd);
+        KLOGW("WevPoll::updateFd, failed, fd="<<fd<<", pfds_fd="<<poll_fds_[idx].first.fd);
         return Result::INVALID_PARAM;
     }
     poll_fds_[idx].first.events = get_events(events);
@@ -283,14 +283,14 @@ void WevPoll::onSocketEvent(WSAEVENT h, const std::vector<SOCKET_FD> &fds)
         if (net_events.lNetworkEvents & FD_READ) {
             revents |= kEventRead;
             if (net_events.iErrorCode[FD_READ_BIT] != 0) {
-                KM_WARNTRACE("WevPoll::onSocketEvent, FD_READ error, fd="<<fd
+                KLOGW("WevPoll::onSocketEvent, FD_READ error, fd="<<fd
                             <<", err="<<net_events.iErrorCode[FD_READ_BIT]);
             }
         }
         if (net_events.lNetworkEvents & FD_WRITE) {
             revents |= kEventWrite;
             if (net_events.iErrorCode[FD_WRITE_BIT] != 0) {
-                KM_WARNTRACE("WevPoll::onSocketEvent, FD_WRITE error, fd="<<fd
+                KLOGW("WevPoll::onSocketEvent, FD_WRITE error, fd="<<fd
                             <<", err="<<net_events.iErrorCode[FD_WRITE_BIT]);
             }
         }
@@ -299,7 +299,7 @@ void WevPoll::onSocketEvent(WSAEVENT h, const std::vector<SOCKET_FD> &fds)
                 revents |= kEventRead;
             } else {
                 revents |= kEventError;
-                KM_WARNTRACE("WevPoll::onSocketEvent, FD_CONNECT error, fd="<<fd
+                KLOGW("WevPoll::onSocketEvent, FD_CONNECT error, fd="<<fd
                             <<", err="<<net_events.iErrorCode[FD_CONNECT_BIT]);
             }
         }
@@ -309,7 +309,7 @@ void WevPoll::onSocketEvent(WSAEVENT h, const std::vector<SOCKET_FD> &fds)
         if (net_events.lNetworkEvents & FD_CLOSE) {
             revents |= kEventError;
             if (net_events.iErrorCode[FD_CLOSE_BIT] != 0) {
-                KM_WARNTRACE("WevPoll::onSocketEvent, FD_CLOSE error, fd="<<fd
+                KLOGW("WevPoll::onSocketEvent, FD_CLOSE error, fd="<<fd
                             <<", err="<<net_events.iErrorCode[FD_CLOSE_BIT]);
             }
         }
