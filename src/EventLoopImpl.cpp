@@ -248,7 +248,7 @@ void EventLoop::Impl::loop(uint32_t max_wait_ms)
         LockGuard g(obs_mutex_);
         notifyObservers(LoopActivity::EXIT);
     }
-    KM_INFOXTRACE("loop, stopped");
+    KLOGI("loop, stopped");
 }
 
 void EventLoop::Impl::stop()

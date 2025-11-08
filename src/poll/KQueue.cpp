@@ -78,7 +78,7 @@ bool KQueue::init()
     }
     kqueue_fd_ = ::kqueue();
     if(INVALID_FD == kqueue_fd_) {
-        KM_ERRTRACE("KQueue::init, kqueue() failed, errno=" << errno);
+        KLOGE("KQueue::init, kqueue() failed, errno=" << errno);
         return false;
     }
 #if defined(EVFILT_USER) && defined(NOTE_TRIGGER)
@@ -93,7 +93,7 @@ bool KQueue::init()
     }
     if (notifier_ && !notifier_->ready()) {
         if(!notifier_->init()) {
-            KM_ERRTRACE("KQueue::init, notifier init failed");
+            KLOGE("KQueue::init, notifier init failed");
             ::close(kqueue_fd_);
             kqueue_fd_ = INVALID_FD;
             return false;
@@ -111,7 +111,7 @@ Result KQueue::registerFd(SOCKET_FD fd, KMEvent events, IOCallback cb)
     }
     auto *poll_item = getPollItem(fd, true);
     if (!poll_item) {
-        KM_ERRTRACE("KQueue::registerFd no poll item, fd=" << fd << ", sz=" << getPollItemSize());
+        KLOGE("KQueue::registerFd no poll item, fd=" << fd << ", sz=" << getPollItemSize());
         return Result::BUFFER_TOO_SMALL;
     }
     poll_item->fd = fd;
@@ -120,17 +120,17 @@ Result KQueue::registerFd(SOCKET_FD fd, KMEvent events, IOCallback cb)
     if (ret != Result::OK) {
         poll_item->reset();
     }
-    KM_INFOTRACE("KQueue::registerFd, fd="<<fd<<", ev="<<events<<", ret="<<(int)ret);
+    KLOGI("KQueue::registerFd, fd="<<fd<<", ev="<<events<<", ret="<<(int)ret);
     return ret;
 }
 
 Result KQueue::unregisterFd(SOCKET_FD fd)
 {
     auto sz = getPollItemSize();
-    KM_INFOTRACE("KQueue::unregisterFd, fd="<<fd<<", sz="<<sz);
+    KLOGI("KQueue::unregisterFd, fd="<<fd<<", sz="<<sz);
     auto *poll_item = getPollItem(fd);
     if (!poll_item) {
-        KM_ERRTRACE("KQueue::unregisterFd failed, fd=" << fd);
+        KLOGE("KQueue::unregisterFd failed, fd=" << fd);
         return Result::INVALID_PARAM;
     }
     struct kevent kevents[2];
@@ -183,11 +183,11 @@ Result KQueue::updateFd(SOCKET_FD fd, KMEvent events)
         EV_SET(&kevents[nchanges++], fd, EVFILT_WRITE, op, 0, 0, 0);
     }
     if(nchanges && ::kevent(kqueue_fd_, kevents, nchanges, 0, 0, 0) == -1) {
-        KM_ERRTRACE("KQueue::updateFd error, fd="<<fd<<", errno="<<errno);
+        KLOGE("KQueue::updateFd error, fd="<<fd<<", errno="<<errno);
         return Result::FAILED;
     }
     poll_item->events = events;
-    //KM_INFOTRACE("KQueue::updateFd, fd="<<fd<<", ev="<<events);
+    //KLOGI("KQueue::updateFd, fd="<<fd<<", ev="<<events);
     return Result::OK;
 }
 
@@ -202,9 +202,9 @@ Result KQueue::wait(uint32_t wait_ms)
     int nevents = kevent(kqueue_fd_, 0, 0, kevents, MAX_EVENT_NUM, wait_ms == -1 ? NULL : &tval);
     if (nevents < 0) {
         if(errno != EINTR) {
-            KM_ERRTRACE("KQueue::wait, errno="<<errno);
+            KLOGE("KQueue::wait, errno="<<errno);
         }
-        KM_INFOTRACE("KQueue::wait, nevents="<<nevents<<", errno="<<errno);
+        KLOGI("KQueue::wait, nevents="<<nevents<<", errno="<<errno);
     } else {
         std::pair<SOCKET_FD, size_t> fds[MAX_EVENT_NUM];
         int nfds = 0;

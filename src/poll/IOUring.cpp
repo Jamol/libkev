@@ -235,14 +235,14 @@ IOUring::IOUring()
 {
     notifier_op_data_.context = &notifier_;
     notifier_op_data_.handler = [] (SOCKET_FD fd, int res, void* ctx) {
-        //KM_INFOTRACE("IOUring notifier callback, fd=" << fd);
+        //KLOGI("IOUring notifier callback, fd=" << fd);
         auto * notifier = static_cast<EventNotifier*>(ctx);
         notifier->onEvent(kEventRead);
     };
     /*timer_op_data_.fd = TIMEOUT_FD_VAL;
     timer_op_data_.context = this;
     timer_op_data_.handler = [] (SOCKET_FD fd, int res, void* ctx) {
-        //KM_INFOTRACE("IOUring timer callback, fd=" << fd);
+        //KLOGI("IOUring timer callback, fd=" << fd);
         auto * _this = static_cast<IOUring*>(ctx);
         _this->timeout_scheduled_ = false;
     };*/
@@ -283,7 +283,7 @@ bool IOUring::init()
     memset(&p, 0, sizeof(p));
     uring_fd_ = __io_uring_setup(QUEUE_DEPTH, &p);
     if(uring_fd_ < 0) {
-        KM_ERRTRACE("IOUring::init, io_uring_setup failed: " << uring_fd_);
+        KLOGE("IOUring::init, io_uring_setup failed: " << uring_fd_);
         return false;
     }
     
@@ -302,7 +302,7 @@ bool IOUring::init()
                 MAP_SHARED | MAP_POPULATE,
                 uring_fd_, IORING_OFF_SQ_RING);
     if (sq_ptr == MAP_FAILED) {
-        KM_ERRTRACE("IOUring::init, mmap failed for SQ ring");
+        KLOGE("IOUring::init, mmap failed for SQ ring");
         cleanup();
         return false;
     }
@@ -316,7 +316,7 @@ bool IOUring::init()
                 MAP_SHARED | MAP_POPULATE,
                 uring_fd_, IORING_OFF_CQ_RING);
         if (cq_ptr == MAP_FAILED) {
-            KM_ERRTRACE("IOUring::init, mmap failed for CQ ring");
+            KLOGE("IOUring::init, mmap failed for CQ ring");
             munmap(sq_ptr, sqring_sz);
             cleanup();
             return false;
@@ -328,7 +328,7 @@ bool IOUring::init()
                 PROT_READ | PROT_WRITE, MAP_SHARED | MAP_POPULATE,
                 uring_fd_, IORING_OFF_SQES);
     if (sqes_ == MAP_FAILED) {
-        KM_ERRTRACE("IOUring::init, mmap failed for SQEs");
+        KLOGE("IOUring::init, mmap failed for SQEs");
         if (cq_ptr != sq_ptr) {
             munmap(cq_ptr, cqring_sz);
         }
@@ -362,7 +362,7 @@ bool IOUring::init()
     // Register notifier for wake-up events
     if (!notifier_.ready()) {
         if(!notifier_.init()) {
-            KM_ERRTRACE("IOUring::init, failed to initialize notifier");
+            KLOGE("IOUring::init, failed to initialize notifier");
             cleanup();
             return false;
         }
@@ -389,20 +389,20 @@ Result IOUring::registerFd(SOCKET_FD fd, KMEvent events, IOCallback cb)
     }
     auto *poll_item = getPollItem(fd, true);
     if (!poll_item) {
-        KM_ERRTRACE("IOUring::registerFd no poll item, fd=" << fd << ", sz=" << getPollItemSize());
+        KLOGE("IOUring::registerFd no poll item, fd=" << fd << ", sz=" << getPollItemSize());
         return Result::BUFFER_TOO_SMALL;
     }
     poll_item->fd = fd;
     poll_item->events = events;
     poll_item->cb = std::move(cb);
-    KM_INFOTRACE("IOUring::registerFd, fd=" << fd << ", events=" << events);
+    KLOGI("IOUring::registerFd, fd=" << fd << ", events=" << events);
     return Result::OK;
 }
 
 Result IOUring::unregisterFd(SOCKET_FD fd)
 {
     auto sz = getPollItemSize();
-    KM_INFOTRACE("IOUring::unregisterFd, fd="<<fd<<", sz="<<sz);
+    KLOGI("IOUring::unregisterFd, fd="<<fd<<", sz="<<sz);
     clearPollItem(fd);
     return Result::OK;
 }
@@ -419,7 +419,7 @@ Result IOUring::updateFd(SOCKET_FD fd, KMEvent events)
 
 Result IOUring::submitOp(SOCKET_FD fd, const Op &op)
 {
-    //KM_INFOTRACE("submitOp, fd=" << fd << ", oc=" << int(op.oc) << ", len=" << op.count << ", iovs=" << op.iovs);
+    //KLOGI("submitOp, fd=" << fd << ", oc=" << int(op.oc) << ", len=" << op.count << ", iovs=" << op.iovs);
     if (op.oc == OpCode::REGISTER || op.oc == OpCode::UNREGISTER) {
         return Result::OK;
     }
@@ -676,7 +676,7 @@ static uint8_t to_ioring_opcode(OpCode op)
 IOPoll* createIOUring() {
     struct utsname utsn;
     if (::uname(&utsn) == 0) {
-        //KM_INFOTRACE("kernal version: " << utsn.release);
+        //KLOGI("kernal version: " << utsn.release);
         int major = -1, minor = -1;
         for_each_token(utsn.release, '.', [&](const std::string &s) {
             if (major == -1) {

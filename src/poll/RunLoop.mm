@@ -162,12 +162,12 @@ Result RunLoopMac::registerFd(SOCKET_FD fd, KMEvent events, IOCallback cb)
     auto sock = CFSocketCreateWithNative(nil, fd, cb_types,
                                     KevSocketCallBack, &context);
     if (sock == nil) {
-        KM_ERRTRACE("RunLoop::registerFd error, fd=" << fd << ", ev=" << events);
+        KLOGE("RunLoop::registerFd error, fd=" << fd << ", ev=" << events);
         return Result::FAILED;
     }
     auto *poll_item = getPollItem(fd, true);
     if (!poll_item) {
-        KM_ERRTRACE("RunLoop::registerFd no poll item, fd=" << fd << ", sz=" << getPollItemSize());
+        KLOGE("RunLoop::registerFd no poll item, fd=" << fd << ", sz=" << getPollItemSize());
         CFSocketInvalidate(sock);
         CFRelease(sock);
         return Result::BUFFER_TOO_SMALL;
@@ -192,7 +192,7 @@ Result RunLoopMac::registerFd(SOCKET_FD fd, KMEvent events, IOCallback cb)
     poll_item->source = sockSource;
     CFRunLoopAddSource(loopref_, sockSource, kCFRunLoopDefaultMode);
 
-    KM_INFOTRACE("RunLoop::registerFd, fd=" << fd << ", ev=" << events);
+    KLOGI("RunLoop::registerFd, fd=" << fd << ", ev=" << events);
 
     return Result::OK;
 }
@@ -200,10 +200,10 @@ Result RunLoopMac::registerFd(SOCKET_FD fd, KMEvent events, IOCallback cb)
 Result RunLoopMac::unregisterFd(SOCKET_FD fd)
 {
     auto sz = getPollItemSize();
-    KM_INFOTRACE("RunLoop::unregisterFd, fd="<<fd<<", sz="<<sz);
+    KLOGI("RunLoop::unregisterFd, fd="<<fd<<", sz="<<sz);
     auto *poll_item = getPollItem(fd);
     if (!poll_item) {
-        KM_ERRTRACE("RunLoop::unregisterFd failed, fd=" << fd);
+        KLOGE("RunLoop::unregisterFd failed, fd=" << fd);
         return Result::INVALID_PARAM;
     }
     auto sock = poll_item->sock;
@@ -228,7 +228,7 @@ Result RunLoopMac::updateFd(SOCKET_FD fd, KMEvent events)
 {
     auto *poll_item = getPollItem(fd);
     if (!poll_item || INVALID_FD == poll_item->fd || poll_item->sock == nil) {
-        KM_ERRTRACE("RunLoop::updateFd failed, fd=" << fd);
+        KLOGE("RunLoop::updateFd failed, fd=" << fd);
         return Result::INVALID_PARAM;
     }
     CFSocketCallBackType disabled_types = kCFSocketNoCallBack;

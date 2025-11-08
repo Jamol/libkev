@@ -106,7 +106,7 @@ public:
             fd_set_->fd_array[fd_set_->fd_count++] = fd;
             return true;
         }
-        KM_ERRTRACE("FD_SET failed, fd=" << fd << ", fd_count=" << fd_set_->fd_count);
+        KLOGE("FD_SET failed, fd=" << fd << ", fd_count=" << fd_set_->fd_count);
         return false;
     }
 
@@ -185,7 +185,7 @@ public:
             FD_SET(fd, &fd_set_);
             return true;
         }
-        KM_ERRTRACE("FD_SET failed, fd=" << fd << ", FD_SETSIZE=" << FD_SETSIZE);
+        KLOGE("FD_SET failed, fd=" << fd << ", FD_SETSIZE=" << FD_SETSIZE);
         return false;
     }
     
@@ -269,10 +269,10 @@ Result SelectPoll::registerFd(SOCKET_FD fd, KMEvent events, IOCallback cb)
     if (fd < 0) {
         return Result::INVALID_PARAM;
     }
-    KM_INFOTRACE("SelectPoll::registerFd, fd=" << fd);
+    KLOGI("SelectPoll::registerFd, fd=" << fd);
     auto *poll_item = getPollItem(fd, true);
     if (!poll_item) {
-        KM_ERRTRACE("SelectPoll::registerFd no poll item, fd=" << fd << ", sz=" << getPollItemSize());
+        KLOGE("SelectPoll::registerFd no poll item, fd=" << fd << ", sz=" << getPollItemSize());
         return Result::BUFFER_TOO_SMALL;
     }
     if (INVALID_FD == poll_item->fd || -1 == poll_item->idx) {
@@ -290,10 +290,10 @@ Result SelectPoll::registerFd(SOCKET_FD fd, KMEvent events, IOCallback cb)
 Result SelectPoll::unregisterFd(SOCKET_FD fd)
 {
     auto sz = getPollItemSize();
-    KM_INFOTRACE("SelectPoll::unregisterFd, fd="<<fd<<", sz="<<sz);
+    KLOGI("SelectPoll::unregisterFd, fd="<<fd<<", sz="<<sz);
     auto *poll_item = getPollItem(fd);
     if (!poll_item) {
-        KM_ERRTRACE("SelectPoll::unregisterFd failed, fd=" << fd);
+        KLOGE("SelectPoll::unregisterFd failed, fd=" << fd);
         return Result::INVALID_PARAM;
     }
     updateFdSet(fd, 0);

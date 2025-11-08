@@ -89,7 +89,7 @@ bool IocpPoll::init()
     }
     hCompPort_ = CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, 0, 1);
     if (!hCompPort_) {
-        KM_ERRTRACE("IocpPoll::init, CreateIoCompletionPort failed, err=" << GetLastError());
+        KLOGE("IocpPoll::init, CreateIoCompletionPort failed, err=" << GetLastError());
         return false;
     }
     return true;
@@ -97,14 +97,14 @@ bool IocpPoll::init()
 
 Result IocpPoll::registerFd(SOCKET_FD fd, KMEvent events, IOCallback cb)
 {
-    KM_INFOTRACE("IocpPoll::registerFd, fd=" << fd << ", events=" << events);
+    KLOGI("IocpPoll::registerFd, fd=" << fd << ", events=" << events);
     if (CreateIoCompletionPort((HANDLE)fd, hCompPort_, (ULONG_PTR)fd, 0) == NULL) {
-        KM_ERRTRACE("IocpPoll::registerFd, CreateIoCompletionPort failed, err=" << GetLastError());
+        KLOGE("IocpPoll::registerFd, CreateIoCompletionPort failed, err=" << GetLastError());
         return Result::POLL_ERROR;
     }
     auto *poll_item = getPollItem(fd, true);
     if (!poll_item) {
-        KM_ERRTRACE("IocpPoll::registerFd no poll item, fd=" << fd << ", sz=" << getPollItemSize());
+        KLOGE("IocpPoll::registerFd no poll item, fd=" << fd << ", sz=" << getPollItemSize());
         return Result::BUFFER_TOO_SMALL;
     }
     poll_item->fd = fd;
@@ -114,7 +114,7 @@ Result IocpPoll::registerFd(SOCKET_FD fd, KMEvent events, IOCallback cb)
 
 Result IocpPoll::unregisterFd(SOCKET_FD fd)
 {
-    KM_INFOTRACE("IocpPoll::unregisterFd, fd="<<fd);
+    KLOGI("IocpPoll::unregisterFd, fd="<<fd);
     clearPollItem(fd);
     
     return Result::OK;
@@ -134,7 +134,7 @@ Result IocpPoll::handleAsyncResult(BOOL result, SOCKET_FD fd, const char* operat
         if (error == WSA_IO_PENDING) {
             return Result::OK; // Operation is pending, which is expected
         }
-        KM_ERRTRACE("submitOp, " << operation << " error, fd=" << fd << ", err=" << error);
+        KLOGE("submitOp, " << operation << " error, fd=" << fd << ", err=" << error);
         return Result::SOCK_ERROR;
     }
     
@@ -300,7 +300,7 @@ Result IocpPoll::wait(uint32_t wait_ms)
     else {
         auto err = ::GetLastError();
         if (err != WAIT_TIMEOUT) {
-            KM_ERRTRACE("IocpPoll::wait, err="<<err);
+            KLOGE("IocpPoll::wait, err="<<err);
         }
     }
     return Result::OK;
@@ -325,7 +325,7 @@ Result IocpPoll::wait(uint32_t wait_ms)
         auto err = ::GetLastError();
         if (NULL == pOverlapped) { // GetQueuedCompletionStatus() failed
             if (err != WAIT_TIMEOUT) {
-                KM_ERRTRACE("IocpPoll::wait, err="<<err);
+                KLOGE("IocpPoll::wait, err="<<err);
             }
         } else { // async IO failed
             if (key) {

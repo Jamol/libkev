@@ -128,7 +128,7 @@ Result VPoll::registerFd(SOCKET_FD fd, KMEvent events, IOCallback cb)
     }
     auto *poll_item = getPollItem(fd, true);
     if (!poll_item) {
-        KM_ERRTRACE("VPoll::registerFd no poll item, fd=" << fd << ", sz=" << getPollItemSize());
+        KLOGE("VPoll::registerFd no poll item, fd=" << fd << ", sz=" << getPollItemSize());
         return Result::BUFFER_TOO_SMALL;
     }
     int idx = -1;
@@ -140,7 +140,7 @@ Result VPoll::registerFd(SOCKET_FD fd, KMEvent events, IOCallback cb)
     poll_item->fd = fd;
     poll_item->events = events;
     poll_item->cb = std::move(cb);
-    KM_INFOTRACE("VPoll::registerFd, fd="<<fd<<", events="<<events<<", index="<<idx);
+    KLOGI("VPoll::registerFd, fd="<<fd<<", events="<<events<<", index="<<idx);
     
     return Result::OK;
 }
@@ -148,10 +148,10 @@ Result VPoll::registerFd(SOCKET_FD fd, KMEvent events, IOCallback cb)
 Result VPoll::unregisterFd(SOCKET_FD fd)
 {
     auto sz = getPollItemSize();
-    KM_INFOTRACE("VPoll::unregisterFd, fd="<<fd<<", sz="<<sz);
+    KLOGI("VPoll::unregisterFd, fd="<<fd<<", sz="<<sz);
     auto *poll_item = getPollItem(fd);
     if (!poll_item) {
-        KM_ERRTRACE("VPoll::unregisterFd failed, fd=" << fd);
+        KLOGE("VPoll::unregisterFd failed, fd=" << fd);
         return Result::INVALID_PARAM;
     }
     int idx = poll_item->idx;
@@ -207,7 +207,7 @@ Result VPoll::wait(uint32_t wait_ms)
         if(EINTR == errno) {
             errno = 0;
         } else {
-            KM_ERRTRACE("VPoll::wait, err="<<SKUtils::getLastError());
+            KLOGE("VPoll::wait, err="<<SKUtils::getLastError());
         }
         return Result::INVALID_STATE;
     }

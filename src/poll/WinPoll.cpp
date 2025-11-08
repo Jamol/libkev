@@ -123,10 +123,10 @@ uint32_t WinPoll::get_kuma_events(uint32_t events) const
 
 Result WinPoll::registerFd(SOCKET_FD fd, uint32_t events, IOCallback cb)
 {
-    KM_INFOTRACE("WinPoll::registerFd, fd=" << fd << ", events=" << events);
+    KLOGI("WinPoll::registerFd, fd=" << fd << ", events=" << events);
     auto *poll_item = getPollItem(fd, true);
     if (!poll_item) {
-        KM_ERRTRACE("WinPoll::registerFd no poll item, fd=" << fd << ", sz=" << getPollItemSize());
+        KLOGE("WinPoll::registerFd no poll item, fd=" << fd << ", sz=" << getPollItemSize());
         return Result::BUFFER_TOO_SMALL;
     }
     poll_item->fd = fd;
@@ -137,7 +137,7 @@ Result WinPoll::registerFd(SOCKET_FD fd, uint32_t events, IOCallback cb)
 
 Result WinPoll::unregisterFd(SOCKET_FD fd)
 {
-    KM_INFOTRACE("WinPoll::unregisterFd, fd="<<fd);
+    KLOGI("WinPoll::unregisterFd, fd="<<fd);
     clearPollItem(fd);
     WSAAsyncSelect(fd, hwnd_, 0, 0);
     return Result::OK;

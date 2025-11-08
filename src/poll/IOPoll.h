@@ -161,7 +161,7 @@ protected:
     void clearPollItem(SOCKET_FD fd) {
         auto max_fd = static_cast<SOCKET_FD>(poll_items_.size() - 1);
         if (fd < 0 || fd > max_fd) {
-            KM_WARNTRACE("IOPoll::clearPollItem, failed, fd=" << fd << ", max_fd=" << max_fd);
+            KTLOGW("IOPoll::clearPollItem, failed, fd=" << fd << ", max_fd=" << max_fd);
             return;
         }
         if(fd < max_fd) {

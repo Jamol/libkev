@@ -51,6 +51,24 @@ namespace kev {
 
 #define KM_ASSERT(x) assert(x)
 
+#define KLOGI(x) KM_INFOTRACE(x)
+#define KLOGW(x) KM_WARNTRACE(x)
+#define KLOGE(x) KM_ERRTRACE(x)
+#define KLOGD(x) KM_DBGTRACE(x)
+#define KLOGV(x) KM_TRACE(kev::TRACE_LEVEL_VERBOS, x)
+
+#define KXLOGI(x) KM_INFOXTRACE(x)
+#define KXLOGW(x) KM_WARNXTRACE(x)
+#define KXLOGE(x) KM_ERRXTRACE(x)
+#define KXLOGD(x) KM_DBGXTRACE(x)
+#define KXLOGV(x) KM_XTRACE(kev::TRACE_LEVEL_VERBOS, x)
+
+#define KTLOGI(x) KM_INFOTRACE_THIS(x)
+#define KTLOGW(x) KM_WARNTRACE_THIS(x)
+#define KTLOGE(x) KM_ERRTRACE_THIS(x)
+#define KTLOGD(x) KM_DBGTRACE_THIS(x)
+#define KTLOGV(x) KM_TRACE(kev::TRACE_LEVEL_VERBOS, x<<", this="<<this)
+
 const int TRACE_LEVEL_ERROR  = 1;
 const int TRACE_LEVEL_WARN   = 2;
 const int TRACE_LEVEL_INFO   = 3;

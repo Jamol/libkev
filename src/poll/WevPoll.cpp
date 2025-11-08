@@ -140,7 +140,7 @@ Result WevPoll::registerFd(SOCKET_FD fd, KMEvent events, IOCallback cb)
     }
     auto *poll_item = getPollItem(fd, true);
     if (!poll_item) {
-        KM_ERRTRACE("WevPoll::registerFd no poll item, fd=" << fd << ", sz=" << getPollItemSize());
+        KLOGE("WevPoll::registerFd no poll item, fd=" << fd << ", sz=" << getPollItemSize());
         return Result::BUFFER_TOO_SMALL;
     }
     int idx = -1;
@@ -166,7 +166,7 @@ Result WevPoll::registerFd(SOCKET_FD fd, KMEvent events, IOCallback cb)
     poll_item->fd = fd;
     poll_item->events = events;
     poll_item->cb = std::move(cb);
-    KM_INFOTRACE("WevPoll::registerFd, fd="<<fd<<", events="<<events<<", index="<<idx);
+    KLOGI("WevPoll::registerFd, fd="<<fd<<", events="<<events<<", index="<<idx);
     
     return Result::OK;
 }
@@ -174,10 +174,10 @@ Result WevPoll::registerFd(SOCKET_FD fd, KMEvent events, IOCallback cb)
 Result WevPoll::unregisterFd(SOCKET_FD fd)
 {
     auto sz = getPollItemSize();
-    KM_INFOTRACE("WevPoll::unregisterFd, fd="<<fd<<", sz="<<sz);
+    KLOGI("WevPoll::unregisterFd, fd="<<fd<<", sz="<<sz);
     auto *poll_item = getPollItem(fd);
     if (!poll_item) {
-        KM_ERRTRACE("WevPoll::unregisterFd failed, fd=" << fd);
+        KLOGE("WevPoll::unregisterFd failed, fd=" << fd);
         return Result::INVALID_PARAM;
     }
     int idx = poll_item->idx;
@@ -252,7 +252,7 @@ Result WevPoll::wait(uint32_t wait_ms)
     }
     DWORD ret = WSAWaitForMultipleEvents((DWORD)ev_count, events_, FALSE, wait_ms, FALSE);
     if (ret == WSA_WAIT_FAILED) {
-        KM_ERRTRACE("WevPoll::wait, err=" << WSAGetLastError());
+        KLOGE("WevPoll::wait, err=" << WSAGetLastError());
         return Result::POLL_ERROR;
     } else if (ret == WSA_WAIT_TIMEOUT) {
         return Result::OK;

@@ -74,12 +74,12 @@ bool EPoll::init()
     }
     epoll_fd_ = epoll_create(MAX_EPOLL_FDS);
     if(INVALID_FD == epoll_fd_) {
-        KM_ERRTRACE("EPoll::init, epoll_create failed, errno=" << errno);
+        KLOGE("EPoll::init, epoll_create failed, errno=" << errno);
         return false;
     }
     if (!notifier_->ready()) {
         if(!notifier_->init()) {
-            KM_ERRTRACE("EPoll::init, notifier init failed");
+            KLOGE("EPoll::init, notifier init failed");
             close(epoll_fd_);
             epoll_fd_ = INVALID_FD;
             return false;
@@ -127,7 +127,7 @@ Result EPoll::registerFd(SOCKET_FD fd, KMEvent events, IOCallback cb)
     }
     auto *poll_item = getPollItem(fd, true);
     if (!poll_item) {
-        KM_ERRTRACE("EPoll::registerFd no poll item, fd=" << fd << ", sz=" << getPollItemSize());
+        KLOGE("EPoll::registerFd no poll item, fd=" << fd << ", sz=" << getPollItemSize());
         return Result::BUFFER_TOO_SMALL;
     }
     int epoll_op = EPOLL_CTL_ADD;
@@ -141,11 +141,11 @@ Result EPoll::registerFd(SOCKET_FD fd, KMEvent events, IOCallback cb)
     evt.data.ptr = (void*)(long)fd;
     evt.events = get_events(events);//EPOLLIN | EPOLLOUT | EPOLLERR | EPOLLHUP | EPOLLET;
     if(epoll_ctl(epoll_fd_, epoll_op, fd, &evt) < 0) {
-        KM_ERRTRACE("EPoll::registerFd error, fd=" << fd << ", ev=" << evt.events << ", errno=" << errno);
+        KLOGE("EPoll::registerFd error, fd=" << fd << ", ev=" << evt.events << ", errno=" << errno);
         poll_item->reset();
         return Result::FAILED;
     }
-    KM_INFOTRACE("EPoll::registerFd, fd=" << fd << ", ev=" << evt.events);
+    KLOGI("EPoll::registerFd, fd=" << fd << ", ev=" << evt.events);
 
     return Result::OK;
 }
@@ -153,7 +153,7 @@ Result EPoll::registerFd(SOCKET_FD fd, KMEvent events, IOCallback cb)
 Result EPoll::unregisterFd(SOCKET_FD fd)
 {
     auto sz = getPollItemSize();
-    KM_INFOTRACE("EPoll::unregisterFd, fd="<<fd<<", sz="<<sz);
+    KLOGI("EPoll::unregisterFd, fd="<<fd<<", sz="<<sz);
     epoll_ctl(epoll_fd_, EPOLL_CTL_DEL, fd, NULL);
     clearPollItem(fd);
     return Result::OK;
@@ -174,7 +174,7 @@ Result EPoll::updateFd(SOCKET_FD fd, KMEvent events)
     evt.data.ptr = (void*)(long)fd;
     evt.events = get_events(events);
     if(epoll_ctl(epoll_fd_, EPOLL_CTL_MOD, fd, &evt) < 0) {
-        KM_ERRTRACE("EPoll::updateFd error, fd="<<fd<<", errno="<<errno);
+        KLOGE("EPoll::updateFd error, fd="<<fd<<", errno="<<errno);
         return Result::FAILED;
     }
     poll_item->events = events;
@@ -187,9 +187,9 @@ Result EPoll::wait(uint32_t wait_ms)
     int nfds = epoll_wait(epoll_fd_, events, MAX_EVENT_NUM, wait_ms);
     if (nfds < 0) {
         if(errno != EINTR) {
-            KM_ERRTRACE("EPoll::wait, errno="<<errno);
+            KLOGE("EPoll::wait, errno="<<errno);
         }
-        KM_INFOTRACE("EPoll::wait, nfds="<<nfds<<", errno="<<errno);
+        KLOGI("EPoll::wait, nfds="<<nfds<<", errno="<<errno);
     } else {
         for (int i=0; i<nfds; ++i) {
             SOCKET_FD fd = (SOCKET_FD)(long)events[i].data.ptr;
