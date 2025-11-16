@@ -37,7 +37,10 @@ extern LPFN_TRANSMITFILE transmit_file;
 extern LPFN_WSASENDMSG wsa_sendmsg;
 extern LPFN_WSARECVMSG wsa_recvmsg;
 
-class IocpPoll : public IOPoll, public IOPollItem<PollItem>
+class IocpPoll : public IOPoll
+#if IOCP_ENABLE_POLL_ITME
+               , public IOPollItem<PollItem>
+#endif
 {
 public:
     IocpPoll();
@@ -98,6 +101,7 @@ bool IocpPoll::init()
 Result IocpPoll::registerFd(SOCKET_FD fd, KMEvent events, IOCallback cb)
 {
     KLOGI("IocpPoll::registerFd, fd=" << fd << ", events=" << events);
+#if IOCP_ENABLE_POLL_ITME
     if (CreateIoCompletionPort((HANDLE)fd, hCompPort_, (ULONG_PTR)fd, 0) == NULL) {
         KLOGE("IocpPoll::registerFd, CreateIoCompletionPort failed, err=" << GetLastError());
         return Result::POLL_ERROR;
@@ -109,14 +113,16 @@ Result IocpPoll::registerFd(SOCKET_FD fd, KMEvent events, IOCallback cb)
     }
     poll_item->fd = fd;
     poll_item->cb = std::move(cb);
+#endif
     return Result::OK;
 }
 
 Result IocpPoll::unregisterFd(SOCKET_FD fd)
 {
     KLOGI("IocpPoll::unregisterFd, fd="<<fd);
+#if IOCP_ENABLE_POLL_ITME
     clearPollItem(fd);
-    
+#endif
     return Result::OK;
 }
 

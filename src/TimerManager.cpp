@@ -384,6 +384,7 @@ int TimerManager::cascadeTimer(int tv_idx, int tl_idx)
     {
         tmp_node = next_node;
         next_node = next_node->next_;
+        tmp_node->resetNode();
         addTimer(tmp_node, FROM_CASCADE);
     }
 

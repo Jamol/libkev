@@ -136,7 +136,7 @@ struct io_uring_getevents_arg {
 	__u64	ts;
 };
 
-class IOUring final : public IOPoll, public IOPollItem<PollItem>
+class IOUring final : public IOPoll
 {
 public:
     IOUring();
@@ -384,36 +384,18 @@ bool IOUring::init()
 
 Result IOUring::registerFd(SOCKET_FD fd, KMEvent events, IOCallback cb)
 {
-    if (fd < 0) {
-        return Result::INVALID_PARAM;
-    }
-    auto *poll_item = getPollItem(fd, true);
-    if (!poll_item) {
-        KLOGE("IOUring::registerFd no poll item, fd=" << fd << ", sz=" << getPollItemSize());
-        return Result::BUFFER_TOO_SMALL;
-    }
-    poll_item->fd = fd;
-    poll_item->events = events;
-    poll_item->cb = std::move(cb);
     KLOGI("IOUring::registerFd, fd=" << fd << ", events=" << events);
     return Result::OK;
 }
 
 Result IOUring::unregisterFd(SOCKET_FD fd)
 {
-    auto sz = getPollItemSize();
-    KLOGI("IOUring::unregisterFd, fd="<<fd<<", sz="<<sz);
-    clearPollItem(fd);
+    KLOGI("IOUring::unregisterFd, fd="<<fd);
     return Result::OK;
 }
 
 Result IOUring::updateFd(SOCKET_FD fd, KMEvent events)
 {
-    auto *poll_item = getPollItem(fd);
-    if (!poll_item) {
-        return Result::INVALID_PARAM;
-    }
-    poll_item->events = events;
     return Result::OK;
 }
 
