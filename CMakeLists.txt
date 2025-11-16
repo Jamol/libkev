@@ -160,6 +160,12 @@ add_library(kev STATIC ${SOURCE_FILES})
 
 if (CMAKE_SYSTEM_NAME MATCHES "Windows")
   target_compile_options(kev PRIVATE /W3 /WX)
+  # Ensure DYNAMIC_ANNOTATIONS_ENABLED is set consistently for all configurations
+  target_compile_definitions(kev PRIVATE
+    $<$<CONFIG:Debug>:DYNAMIC_ANNOTATIONS_ENABLED=1>
+    $<$<CONFIG:Debug>:WTF_USE_DYNAMIC_ANNOTATIONS=1>
+    $<$<OR:$<CONFIG:Release>,$<CONFIG:RelWithDebInfo>>:DYNAMIC_ANNOTATIONS_ENABLED=0>
+  )
 else ()
   target_compile_options(kev PRIVATE -Werror)
 endif ()
