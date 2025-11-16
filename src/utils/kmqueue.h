@@ -18,11 +18,13 @@
 #include <memory>
 #include <atomic>
 
+#include "kmilist.h"
+
 namespace kev {
 
 const size_t kPaddingSize = 128;
 ///
-// enqueue on a thread and dequene form another thread
+// enqueue on a thread and dequeue from another thread
 ///
 template <class E>
 class KMQueue
@@ -83,12 +85,12 @@ public:
         }
     }
     
-    bool empty()
+    bool empty() const noexcept
     {
         return size() == 0;
     }
     
-    size_t size()
+    size_t size() const noexcept
     {
         return count_.load(std::memory_order_relaxed);
     }
@@ -111,13 +113,12 @@ protected:
     std::atomic<size_t> count_{ 0 };
 };
 
-
 // double linked list
 template <class E>
 class DLQueue final
 {
 public:
-    class DLNode
+    class DLNode : public kev::shared_inode<DLNode>
     {
     public:
         using Ptr = std::shared_ptr<DLNode>;
@@ -125,54 +126,35 @@ public:
         template<class... Args>
         DLNode(Args&&... args) : element_{ std::forward<Args>(args)... } {}
         E& element() { return element_; }
-        bool isLinked() const { return linked_; }
         
     private:
         friend class DLQueue;
         E element_;
-        bool linked_{false};
-        Ptr prev_;
-        Ptr next_;
     };
     using NodePtr = typename DLNode::Ptr;
     
 public:
     ~DLQueue()
     {
-        while(head_) {
-            head_->linked_ = false;
-            head_ = head_->next_;
-        }
+        list_.clear();
     }
     
     template <class... Args>
     NodePtr enqueue(Args&&... args)
     {
         auto node = std::make_shared<DLNode>(std::forward<Args>(args)...);
-        return enqueue(node);
-    }
-    
-    NodePtr enqueue(NodePtr &node)
-    {
-        if (empty()) {
-            head_ = node;
-        } else {
-            tail_->next_ = node;
-            node->prev_ = tail_;
-        }
-        tail_ = node;
-        node->linked_ = true;
-        ++count_;
+        list_.push_back(node);
         return node;
     }
     
     bool dequeue(E &element)
     {
-        if(empty()) {
+        if (list_.empty()) {
             return false;
         }
-        element = std::move(head_->element_);
-        pop_front();
+        auto node = list_.front_element();
+        list_.pop_front();
+        element = std::move(node->element_);
         return true;
     }
     
@@ -182,74 +164,45 @@ public:
             static E E_empty{};
             return E_empty;
         }
-        return head_->element_;
+        return list_.front().element_;
     }
     
     NodePtr& front_node()
     {
-        return head_;
+        return list_.front_element();
     }
     
     void pop_front()
     {
-        if(!empty()) {
-            head_->linked_ = false;
-            if (head_->next_) {
-                head_ = head_->next_;
-                head_->prev_->next_.reset();
-                head_->prev_.reset();
-            } else {
-                head_.reset();
-                tail_.reset();
-            }
-            --count_;
-        }
+        list_.pop_front();
     }
     
     bool remove(const NodePtr &node)
     {// make sure the node is in this queue
-        if (!node || (!node->prev_ && !node->next_ && node != head_)) {
+        if (!node) {
             return false;
         }
-        if (node->next_) {
-            node->next_->prev_ = node->prev_;
-        } else if (tail_ == node) {
-            tail_ = node->prev_;
-        }
-        if (node->prev_) {
-            node->prev_->next_ = node->next_;
-        } else if (head_ == node) {
-            head_ = node->next_;
-        }
-        node->next_.reset();
-        node->prev_.reset();
-        node->linked_ = false;
-        --count_;
+        list_.remove(node);
         return true;
     }
     
-    bool empty()
+    bool empty() const noexcept
     {
-        return !head_;
+        return list_.empty();
     }
 
-    size_t size()
+    size_t size() const noexcept
     {
-        return count_.load(std::memory_order_relaxed);
+        return list_.size();
     }
     
     void swap(DLQueue &other)
     {
-        head_.swap(other.head_);
-        tail_.swap(other.tail_);
-        auto c = count_.exchange(other.count_.load(std::memory_order_relaxed), std::memory_order_relaxed);
-        other.count_.exchange(c, std::memory_order_relaxed);
+        list_.swap(other.list_);
     }
     
 protected:
-    NodePtr head_;
-    NodePtr tail_;
-    std::atomic<size_t> count_{0};
+    ilist<kev::shared_inode<DLNode>> list_;
 };
-    
+
 } // namespace kev

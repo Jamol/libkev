@@ -20,6 +20,7 @@
 #include "kevops.h"
 #include "utils/utils.h"
 #include "utils/kmtrace.h"
+#include "utils/kmilist.h"
 
 #ifdef KUMA_OS_WIN
 # include <Ws2tcpip.h>
@@ -178,6 +179,58 @@ protected:
 
 private:
     PollItems  poll_items_;
+};
+
+struct IOPollData : public inode<IOPollData>
+{
+    SOCKET_FD fd { INVALID_FD };
+    KMEvent events { 0 };
+    IOCallback cb;
+};
+
+template<typename PollDataType>
+class IoPollDataManager
+{
+public:
+    virtual ~IoPollDataManager() {
+        while (!pending_list_.empty()) {
+            auto *data = &pending_list_.front();
+            pending_list_.pop_front();
+            delete data;
+        }
+        while (!free_list_.empty()) {
+            auto *data = &free_list_.front();
+            free_list_.pop_front();
+            delete data;
+        }
+    }
+
+    PollDataType* allocPollData() {
+        if (!free_list_.empty()) {
+            auto *data = &free_list_.front();
+            free_list_.pop_front();
+            return data;
+        }
+        return new PollDataType();
+    }
+
+    void freePollData(PollDataType* data) {
+        if (data) {
+            data->fd = INVALID_FD;
+            data->events = 0;
+            data->cb = {};
+            pending_list_.push_back(data);
+        }
+    }
+
+private:
+    void processPendingPollData() {
+        free_list_.splice(pending_list_);
+    }
+
+private:
+    ilist<inode<IOPollData>> free_list_;
+    ilist<inode<IOPollData>> pending_list_;
 };
 
 KEV_NS_END

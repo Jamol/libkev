@@ -136,7 +136,8 @@ Result EventLoop::Impl::appendObserver(ObserverCallback cb, EventLoopToken *toke
     if (stop_loop_) {
         return Result::INVALID_STATE;
     }
-    auto obs_node = obs_queue_.enqueue(std::move(cb));
+    auto obs_node = std::make_shared<ObserverNode>(std::move(cb));
+    obs_queue_.push_back(obs_node);
     if (token) {
         token->obs_token_ = obs_node;
         token->observed = true;
@@ -150,10 +151,10 @@ Result EventLoop::Impl::removeObserver(EventLoopToken *token)
         if (token->eventLoop().get() != this) {
             return Result::INVALID_STATE;
         }
-        auto node = token->obs_token_.lock();
-        if (node) {
+        auto obs_node = token->obs_token_.lock();
+        if (obs_node) {
             LockGuard g(obs_mutex_);
-            obs_queue_.remove(node);
+            obs_queue_.remove(obs_node);
         }
         token->obs_token_.reset();
         token->observed = false;
@@ -163,10 +164,11 @@ Result EventLoop::Impl::removeObserver(EventLoopToken *token)
 
 void EventLoop::Impl::notifyObservers(LoopActivity activity)
 {
-    ObserverCallback cb;
-    while (obs_queue_.dequeue(cb)) {
-        if (cb) {
-            cb(activity);
+    while (!obs_queue_.empty()) {
+        auto obs_node = obs_queue_.front_element();
+        obs_queue_.pop_front();
+        if (obs_node && obs_node->callback) {
+            obs_node->callback(activity);
         }
     }
 }
@@ -175,33 +177,21 @@ void EventLoop::Impl::appendPendingObject(PendingObject *obj)
 {
     KM_ASSERT(inSameThread());
     KM_ASSERT(obj != nullptr);
-    if (pending_objects_) {
-        obj->next_ = pending_objects_;
-        pending_objects_->prev_ = obj;
-    }
-    pending_objects_ = obj;
+    pending_objects_.push_back(obj);
 }
 
 void EventLoop::Impl::removePendingObject(PendingObject *obj)
 {
     KM_ASSERT(inSameThread());
     KM_ASSERT(obj != nullptr);
-    if (pending_objects_ == obj) {
-        pending_objects_ = obj->next_;
-    }
-    if (obj->prev_) {
-        obj->prev_->next_ = obj->next_;
-    }
-    if (obj->next_) {
-        obj->next_->prev_ = obj->prev_;
-    }
+    pending_objects_.remove(obj);
 }
 
 void EventLoop::Impl::cleanupPendingObjects()
 {
-    while (pending_objects_) {
-        auto* obj = pending_objects_;
-        pending_objects_ = pending_objects_->next_;
+    while (!pending_objects_.empty()) {
+        auto* obj = &pending_objects_.front();
+        pending_objects_.pop_front();
         obj->onLoopExit();
     }
 }

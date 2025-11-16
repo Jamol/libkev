@@ -24,9 +24,9 @@
 
 #include "../include/kev.h"
 #include "../include/kevdefs.h"
-#include "utils/kmqueue.h"
 #include "TimerManager.h"
 #include "utils/kmobject.h"
+#include "utils/kmilist.h"
 
 #ifdef KUMA_OS_WIN
 # include <Ws2tcpip.h>
@@ -62,6 +62,7 @@ public:
     {
         return bool(task);
     }
+
     EventLoop::Task task;
     std::string     debug_str;
 };
@@ -129,23 +130,24 @@ enum class LoopActivity {
     EXIT,
 };
 using ObserverCallback = std::function<void(LoopActivity)>;
-using ObserverToken = std::weak_ptr<DLQueue<ObserverCallback>::DLNode>;
+struct ObserverNode : public shared_inode<ObserverNode>
+{
+    ObserverNode(ObserverCallback ocb) : callback(std::move(ocb)) {}
+    ObserverCallback callback;
+};
+using ObserverToken = std::weak_ptr<ObserverNode>;
 
 /**
  * PendingObject is used to cache the IOCP context when destroying IocpSocket that 
  * has pending operations. It will be removed after all pending operatios are completed,
  * or the loop exited
  */
-class PendingObject
+class PendingObject : public inode<PendingObject>
 {
 public:
     virtual ~PendingObject() {}
     virtual bool isPending() const = 0;
     virtual void onLoopExit() = 0;
-
-public:
-    PendingObject* next_ = nullptr;
-    PendingObject* prev_ = nullptr;
 };
 
 class EventLoop::Impl : public KMObject
@@ -259,7 +261,6 @@ protected:
     void notifyObservers(LoopActivity activity);
     
 protected:
-    using ObserverQueue = DLQueue<ObserverCallback>;
     using LockType = std::mutex;
     using LockGuard = std::lock_guard<LockType>;
     
@@ -270,12 +271,12 @@ protected:
     TaskQueue           task_queue_;
     LockType            task_mutex_;
     
-    ObserverQueue       obs_queue_;
+    ilist<shared_inode<ObserverNode>> obs_queue_;
     LockType            obs_mutex_;
     
     TimerManager::Ptr   timer_mgr_;
 
-    PendingObject*      pending_objects_ = nullptr;
+    ilist<inode<PendingObject>> pending_objects_;
 };
 
 class EventLoop::Token::Impl
