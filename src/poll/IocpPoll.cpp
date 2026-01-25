@@ -39,7 +39,7 @@ extern LPFN_WSARECVMSG wsa_recvmsg;
 
 class IocpPoll : public IOPoll
 #if IOCP_ENABLE_POLL_ITME
-               , public IOPollItem<PollItem>
+               , IOPollItemManager<IOPollItem>
 #endif
 {
 public:

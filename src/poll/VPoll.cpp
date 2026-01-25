@@ -36,7 +36,7 @@
 
 KEV_NS_BEGIN
 
-class VPoll : public IOPoll, public IOPollItem<PollItem>
+class VPoll : public IOPoll, IOPollItemManager<IOPollItem>
 {
 public:
     VPoll();

@@ -25,12 +25,14 @@
 
 #include <sys/epoll.h>
 
+#include <mutex>
+
 KEV_NS_BEGIN
 
 #define MAX_EPOLL_FDS   5000
 #define MAX_EVENT_NUM   500
 
-class EPoll : public IOPoll, public IOPollItem<PollItem>
+class EPoll : public IOPoll
 {
 public:
     EPoll();
@@ -44,14 +46,26 @@ public:
     void notify() override;
     PollType getType() const override { return PollType::EPOLL; }
     bool isLevelTriggered() const override { return false; }
+    
+    Result registerFd(SOCKET_FD fd, KMEvent events, IOCallback cb, IOPollData *&data) override;
+    Result updateFd(SOCKET_FD fd, KMEvent events, IOPollData *data) override;
+    Result unregisterFd(SOCKET_FD fd, IOPollData *&data) override;
 
 private:
     uint32_t get_events(KMEvent kuma_events) const;
     KMEvent get_kuma_events(uint32_t events) const;
+    IOPollData* allocPollData();
+    void freePollData(IOPollData *data);
+    void processPendingPollData();
 
 private:
     int             epoll_fd_ { INVALID_FD };
     NotifierPtr     notifier_ { std::move(Notifier::createNotifier()) };
+    IOPollData*     notifier_data_ { nullptr };
+
+    std::unique_ptr<IoPollDataManager<IOPollData>> poll_data_mgr_;
+    std::unique_ptr<IOPollItemManager<IOPollItem>> poll_item_mgr_;
+    std::mutex      poll_data_mutex_;
 };
 
 EPoll::EPoll()
@@ -64,6 +78,10 @@ EPoll::~EPoll()
     if(INVALID_FD != epoll_fd_) {
         close(epoll_fd_);
         epoll_fd_ = INVALID_FD;
+    }
+    if (notifier_data_) {
+        freePollData(notifier_data_);
+        notifier_data_ = nullptr;
     }
 }
 
@@ -85,7 +103,7 @@ bool EPoll::init()
             return false;
         }
         IOCallback cb ([this](SOCKET_FD, KMEvent ev, void*, size_t) { notifier_->onEvent(ev); });
-        registerFd(notifier_->getReadFD(), kEventRead | kEventError, std::move(cb));
+        registerFd(notifier_->getReadFD(), kEventRead | kEventError, std::move(cb), notifier_data_);
     }
     return true;
 }
@@ -122,12 +140,17 @@ KMEvent EPoll::get_kuma_events(uint32_t events) const
 
 Result EPoll::registerFd(SOCKET_FD fd, KMEvent events, IOCallback cb)
 {
+#if 0
     if (fd < 0) {
         return Result::INVALID_PARAM;
     }
-    auto *poll_item = getPollItem(fd, true);
+    if (!poll_item_mgr_) {
+        poll_item_mgr_ = std::make_unique<IOPollItemManager<IOPollItem>>();
+    }
+    auto *poll_item = poll_item_mgr_->getPollItem(fd, true);
     if (!poll_item) {
-        KLOGE("EPoll::registerFd no poll item, fd=" << fd << ", sz=" << getPollItemSize());
+        KLOGE("EPoll::registerFd no poll item, fd=" << fd << ", sz="
+            << poll_item_mgr_->getPollItemSize());
         return Result::BUFFER_TOO_SMALL;
     }
     int epoll_op = EPOLL_CTL_ADD;
@@ -148,20 +171,28 @@ Result EPoll::registerFd(SOCKET_FD fd, KMEvent events, IOCallback cb)
     KLOGI("EPoll::registerFd, fd=" << fd << ", ev=" << evt.events);
 
     return Result::OK;
+#else
+    return Result::NOT_IMPLEMENTED;
+#endif
 }
 
 Result EPoll::unregisterFd(SOCKET_FD fd)
 {
-    auto sz = getPollItemSize();
+#if 0
+    auto sz = poll_item_mgr_->getPollItemSize();
     KLOGI("EPoll::unregisterFd, fd="<<fd<<", sz="<<sz);
     epoll_ctl(epoll_fd_, EPOLL_CTL_DEL, fd, NULL);
-    clearPollItem(fd);
+    poll_item_mgr_->clearPollItem(fd);
     return Result::OK;
+#else
+    return Result::NOT_IMPLEMENTED;
+#endif
 }
 
 Result EPoll::updateFd(SOCKET_FD fd, KMEvent events)
 {
-    auto *poll_item = getPollItem(fd);
+#if 0
+    auto *poll_item = poll_item_mgr_->getPollItem(fd);
     if (!poll_item || INVALID_FD == poll_item->fd) {
         return Result::INVALID_PARAM;
     }
@@ -179,6 +210,123 @@ Result EPoll::updateFd(SOCKET_FD fd, KMEvent events)
     }
     poll_item->events = events;
     return Result::OK;
+#else
+    return Result::NOT_IMPLEMENTED;
+#endif
+}
+
+IOPollData* EPoll::allocPollData()
+{
+    {
+        std::lock_guard<std::mutex> g(poll_data_mutex_);
+        if (!poll_data_mgr_) {
+            poll_data_mgr_ = std::make_unique<IoPollDataManager<IOPollData>>();
+        }
+        auto *data = poll_data_mgr_->getFreePollData();
+        if (data) {
+            return data;
+        }
+    }
+    return poll_data_mgr_->createPollData();
+}
+
+void EPoll::freePollData(IOPollData *data)
+{
+    if (!data) {
+        return;
+    }
+    data->reset();
+    {
+        std::lock_guard<std::mutex> g(poll_data_mutex_);
+        if (poll_data_mgr_) {
+            poll_data_mgr_->freePollData(data);
+            return;
+        }
+    }
+    delete data;
+}
+
+void EPoll::processPendingPollData()
+{
+    std::lock_guard<std::mutex> g(poll_data_mutex_);
+    if (poll_data_mgr_) {
+        poll_data_mgr_->processPendingPollData();
+    }
+}
+
+Result EPoll::registerFd(SOCKET_FD fd, KMEvent events, IOCallback cb, IOPollData *&data)
+{
+    if (fd < 0) {
+        return Result::INVALID_PARAM;
+    }
+    int epoll_op = EPOLL_CTL_ADD;
+    IOPollData *poll_data = data;
+    if (!poll_data) {
+        poll_data = allocPollData();
+        if (!poll_data) {
+            KLOGE("EPoll::registerFd no poll data, fd=" << fd);
+            return Result::BUFFER_TOO_SMALL;
+        }
+    } else if (fd == poll_data->fd) {
+        epoll_op = EPOLL_CTL_MOD;
+    } else if (INVALID_FD != poll_data->fd) {
+        KLOGW("EPoll::registerFd different fd: " << fd << " " << poll_data->fd);
+    }
+    {
+        std::lock_guard<std::recursive_mutex> g(poll_data->rmtx);
+        poll_data->fd = fd;
+        poll_data->events = events;
+        poll_data->cb = std::move(cb);
+    }
+    struct epoll_event evt = {0};
+    evt.data.ptr = poll_data;
+    evt.events = get_events(events);//EPOLLIN | EPOLLOUT | EPOLLERR | EPOLLHUP | EPOLLET;
+    if(epoll_ctl(epoll_fd_, epoll_op, fd, &evt) < 0) {
+        KLOGE("EPoll::registerFd error, fd=" << fd << ", ev=" << evt.events << ", errno=" << errno);
+        if (!data) {
+            freePollData(poll_data);
+        }
+        return Result::FAILED;
+    }
+    if (!data) {
+        data = poll_data;
+    }
+    KLOGI("EPoll::registerFd, fd=" << fd << ", ev=" << evt.events << ", data=" << data);
+
+    return Result::OK;
+}
+
+Result EPoll::unregisterFd(SOCKET_FD fd, IOPollData *&data)
+{
+    KLOGI("EPoll::unregisterFd, fd=" << fd << ", data=" << data);
+    epoll_ctl(epoll_fd_, EPOLL_CTL_DEL, fd, NULL);
+    freePollData(data);
+    data = nullptr;
+    return Result::OK;
+}
+
+Result EPoll::updateFd(SOCKET_FD fd, KMEvent events, IOPollData *data)
+{
+    if (!data) {
+        return Result::INVALID_PARAM;
+    }
+    if (fd != data->fd) {
+        KLOGW("EPoll::updateFd different fd: " << fd << " " << data->fd);
+        return Result::INVALID_PARAM;
+    }
+    if (data->events == events) {
+        return Result::OK;
+    }
+    struct epoll_event evt = {0};
+    evt.data.ptr = data;
+    evt.events = get_events(events);
+    if(epoll_ctl(epoll_fd_, EPOLL_CTL_MOD, fd, &evt) < 0) {
+        KLOGE("EPoll::updateFd error, fd="<<fd<<", errno="<<errno);
+        return Result::FAILED;
+    }
+    std::lock_guard<std::recursive_mutex> g(data->rmtx);
+    data->events = events;
+    return Result::OK;
 }
 
 Result EPoll::wait(uint32_t wait_ms)
@@ -192,8 +340,9 @@ Result EPoll::wait(uint32_t wait_ms)
         KLOGI("EPoll::wait, nfds="<<nfds<<", errno="<<errno);
     } else {
         for (int i=0; i<nfds; ++i) {
+#if 0
             SOCKET_FD fd = (SOCKET_FD)(long)events[i].data.ptr;
-            auto *poll_item = getPollItem(fd);
+            auto *poll_item = poll_item_mgr_->getPollItem(fd);
             if(poll_item) {
                 auto revents = get_kuma_events(events[i].events);
                 revents &= poll_item->events;
@@ -202,8 +351,21 @@ Result EPoll::wait(uint32_t wait_ms)
                     if(cb) cb(fd, revents, nullptr, 0);
                 }
             }
+#else
+            auto *data = static_cast<IOPollData*>(events[i].data.ptr);
+            if (data) {
+                auto revents = get_kuma_events(events[i].events);
+                revents &= data->events;
+                if (revents) {
+                    std::lock_guard<std::recursive_mutex> g(data->rmtx);
+                    auto &cb = data->cb;
+                    if(cb) cb(data->fd, revents, nullptr, 0);
+                }
+            }
+#endif
         }
     }
+    processPendingPollData();
     return Result::OK;
 }
 

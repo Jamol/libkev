@@ -87,6 +87,7 @@ public:
      */
     bool init();
     
+#if 0
     /* NOTE: cb must be valid until unregisterFd called
      * this API is thread-safe
      */
@@ -99,8 +100,22 @@ public:
      * this API is thread-safe
      */
     Result unregisterFd(SOCKET_FD fd, bool close_fd);
+#endif
 
     Result submitOp(SOCKET_FD fd, const Op &op);
+
+    /* NOTE: cb must be valid until unregisterFd called
+     * this API is thread-safe
+     */
+    Result registerFd(SOCKET_FD fd, uint32_t events, IOCallback cb, IOEventData &data);
+    /*
+     * this API is thread-safe
+     */
+    Result updateFd(SOCKET_FD fd, uint32_t events, IOEventData data);
+    /*
+     * this API is thread-safe
+     */
+    Result unregisterFd(SOCKET_FD fd, bool close_fd, IOEventData &data);
     
     PollType getPollType() const;
     bool isPollLT() const; // level trigger

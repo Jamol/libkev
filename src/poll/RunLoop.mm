@@ -52,7 +52,7 @@ struct SockItem
     IOCallback cb;
 };
 
-class RunLoopMac : public IOPoll, public IOPollItem<SockItem>
+class RunLoopMac : public IOPoll, IOPollItemManager<SockItem>
 {
 public:
     ~RunLoopMac();

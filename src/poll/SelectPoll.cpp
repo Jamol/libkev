@@ -206,7 +206,7 @@ private:
 };
 #endif
 
-class SelectPoll : public IOPoll, public IOPollItem<PollItem>
+class SelectPoll : public IOPoll, public IOPollItemManager<IOPollItem>
 {
 public:
     SelectPoll();

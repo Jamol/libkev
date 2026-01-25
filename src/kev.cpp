@@ -84,6 +84,7 @@ bool EventLoop::isPollLT() const
     return  pimpl_->isPollLT();
 }
 
+#if 0
 Result EventLoop::registerFd(SOCKET_FD fd, uint32_t events, IOCallback cb)
 {
     return pimpl_->registerFd(fd, events, std::move(cb));
@@ -97,6 +98,22 @@ Result EventLoop::updateFd(SOCKET_FD fd, uint32_t events)
 Result EventLoop::unregisterFd(SOCKET_FD fd, bool close_fd)
 {
     return pimpl_->unregisterFd(fd, close_fd);
+}
+#endif
+
+Result EventLoop::registerFd(SOCKET_FD fd, uint32_t events, IOCallback cb, IOEventData &data)
+{
+    return pimpl_->registerFd(fd, events, std::move(cb), data);
+}
+
+Result EventLoop::updateFd(SOCKET_FD fd, uint32_t events, IOEventData data)
+{
+    return pimpl_->updateFd(fd, events, data);
+}
+
+Result EventLoop::unregisterFd(SOCKET_FD fd, bool close_fd, IOEventData &data)
+{
+    return pimpl_->unregisterFd(fd, close_fd, data);
 }
 
 void EventLoop::loopOnce(uint32_t max_wait_ms)
