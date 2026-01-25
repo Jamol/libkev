@@ -29,7 +29,7 @@ const size_t kBatchSize = 16;
 
 KEV_NS_BEGIN
 
-class WevPoll : public IOPoll, public IOPollItem<PollItem>
+class WevPoll : public IOPoll, IOPollItemManager<IOPollItem>
 {
 public:
     WevPoll();

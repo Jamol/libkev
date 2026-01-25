@@ -168,6 +168,11 @@ public:
     Result unregisterFd(SOCKET_FD fd, bool close_fd);
     Result submitOp(SOCKET_FD fd, const Op &op);
     TimerManager::Ptr getTimerMgr() const { return timer_mgr_; }
+
+    
+    Result registerFd(SOCKET_FD fd, uint32_t events, IOCallback cb, IOEventData &data);
+    Result updateFd(SOCKET_FD fd, uint32_t events, IOEventData data);
+    Result unregisterFd(SOCKET_FD fd, bool close_fd, IOEventData &data);
     
     PollType getPollType() const;
     bool isPollLT() const; // level trigger

@@ -70,6 +70,7 @@
 
 #include <vector>
 #include <unordered_map>
+#include <mutex>
 
 //#define IOPOLL_ITEMS_USE_MAP
 
@@ -89,13 +90,28 @@ public:
     virtual PollType getType() const = 0;
     virtual bool isLevelTriggered() const = 0;
 
+    virtual Result registerFd(SOCKET_FD fd, KMEvent events, IOCallback cb, IOPollData *&data)
+    {
+        data = nullptr;
+        return registerFd(fd, events, std::move(cb));
+    }
+    virtual Result updateFd(SOCKET_FD fd, KMEvent events, IOPollData *data)
+    {
+        return updateFd(fd, events);
+    }
+    virtual Result unregisterFd(SOCKET_FD fd, IOPollData *&data)
+    {
+        data = nullptr;
+        return unregisterFd(fd);
+    }
+
     virtual Result submitOp(SOCKET_FD fd, const Op &op)
     {
         return Result::NOT_SUPPORTED;
     }
 };
 
-struct PollItem
+struct IOPollItem
 {
     void reset() {
         fd = INVALID_FD;
@@ -112,9 +128,9 @@ struct PollItem
 };
 
 template<typename ItemType>
-class IOPollItem
+class IOPollItemManager
 {
-protected:
+public:
 #ifdef IOPOLL_ITEMS_USE_MAP
     using PollItems = std::unordered_map<SOCKET_FD, ItemType>;
     ItemType* getPollItem(SOCKET_FD fd, bool create_if_not_exist = false) {
@@ -186,6 +202,14 @@ struct IOPollData : public inode<IOPollData>
     SOCKET_FD fd { INVALID_FD };
     KMEvent events { 0 };
     IOCallback cb;
+    std::recursive_mutex rmtx;
+
+    void reset() {
+        std::lock_guard<std::recursive_mutex> g(rmtx);
+        fd = INVALID_FD;
+        events = 0;
+        cb = {};
+    }
 };
 
 template<typename PollDataType>
@@ -205,27 +229,40 @@ public:
         }
     }
 
-    PollDataType* allocPollData() {
+    PollDataType* createPollData() {
+        return new PollDataType();
+    }
+
+    PollDataType* getFreePollData() {
         if (!free_list_.empty()) {
             auto *data = &free_list_.front();
             free_list_.pop_front();
             return data;
         }
-        return new PollDataType();
+        return nullptr;
+    }
+
+    PollDataType* allocPollData() {
+        auto *data = getFreePollData();
+        return data ? data : new PollDataType();
     }
 
     void freePollData(PollDataType* data) {
         if (data) {
-            data->fd = INVALID_FD;
-            data->events = 0;
-            data->cb = {};
             pending_list_.push_back(data);
         }
     }
 
-private:
     void processPendingPollData() {
+#if 1
         free_list_.splice(pending_list_);
+#else
+        while (!pending_list_.empty()) {
+            auto *data = &pending_list_.front();
+            pending_list_.pop_front();
+            delete data;
+        }
+#endif
     }
 
 private:
