@@ -73,6 +73,10 @@
 #include <mutex>
 
 //#define IOPOLL_ITEMS_USE_MAP
+#if defined(KUMA_OS_LINUX) || defined(KUMA_OS_OHOS) || defined(KUMA_OS_MAC)
+// for epoll and kqueue
+#define IOPOLL_ITEMS_USE_DATA
+#endif
 
 KEV_NS_BEGIN
 
@@ -187,7 +191,7 @@ public:
             poll_items_.pop_back();
         }
     }
-#endif
+#endif // IOPOLL_ITEMS_USE_MAP
 
     size_t getPollItemSize() const {
         return poll_items_.size();
@@ -197,6 +201,7 @@ private:
     PollItems  poll_items_;
 };
 
+#if defined(IOPOLL_ITEMS_USE_DATA)
 struct IOPollData : public inode<IOPollData>
 {
     SOCKET_FD fd { INVALID_FD };
@@ -269,6 +274,7 @@ private:
     ilist<inode<IOPollData>> free_list_;
     ilist<inode<IOPollData>> pending_list_;
 };
+#endif // defined(IOPOLL_ITEMS_USE_DATA)
 
 KEV_NS_END
 

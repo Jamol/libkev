@@ -54,18 +54,23 @@ public:
 private:
     uint32_t get_events(KMEvent kuma_events) const;
     KMEvent get_kuma_events(uint32_t events) const;
+#ifdef IOPOLL_ITEMS_USE_DATA
     IOPollData* allocPollData();
     void freePollData(IOPollData *data);
     void processPendingPollData();
+#endif
 
 private:
     int             epoll_fd_ { INVALID_FD };
     NotifierPtr     notifier_ { std::move(Notifier::createNotifier()) };
     IOPollData*     notifier_data_ { nullptr };
 
+#ifdef IOPOLL_ITEMS_USE_DATA
     std::unique_ptr<IoPollDataManager<IOPollData>> poll_data_mgr_;
-    std::unique_ptr<IOPollItemManager<IOPollItem>> poll_item_mgr_;
     std::mutex      poll_data_mutex_;
+#else
+    std::unique_ptr<IOPollItemManager<IOPollItem>> poll_item_mgr_;
+#endif
 };
 
 EPoll::EPoll()
@@ -79,10 +84,12 @@ EPoll::~EPoll()
         close(epoll_fd_);
         epoll_fd_ = INVALID_FD;
     }
+#ifdef IOPOLL_ITEMS_USE_DATA
     if (notifier_data_) {
         freePollData(notifier_data_);
         notifier_data_ = nullptr;
     }
+#endif
 }
 
 bool EPoll::init()
@@ -140,7 +147,7 @@ KMEvent EPoll::get_kuma_events(uint32_t events) const
 
 Result EPoll::registerFd(SOCKET_FD fd, KMEvent events, IOCallback cb)
 {
-#if 0
+#if !defined(IOPOLL_ITEMS_USE_DATA)
     if (fd < 0) {
         return Result::INVALID_PARAM;
     }
@@ -178,7 +185,7 @@ Result EPoll::registerFd(SOCKET_FD fd, KMEvent events, IOCallback cb)
 
 Result EPoll::unregisterFd(SOCKET_FD fd)
 {
-#if 0
+#if !defined(IOPOLL_ITEMS_USE_DATA)
     auto sz = poll_item_mgr_->getPollItemSize();
     KLOGI("EPoll::unregisterFd, fd="<<fd<<", sz="<<sz);
     epoll_ctl(epoll_fd_, EPOLL_CTL_DEL, fd, NULL);
@@ -191,7 +198,7 @@ Result EPoll::unregisterFd(SOCKET_FD fd)
 
 Result EPoll::updateFd(SOCKET_FD fd, KMEvent events)
 {
-#if 0
+#if !defined(IOPOLL_ITEMS_USE_DATA)
     auto *poll_item = poll_item_mgr_->getPollItem(fd);
     if (!poll_item || INVALID_FD == poll_item->fd) {
         return Result::INVALID_PARAM;
@@ -215,6 +222,7 @@ Result EPoll::updateFd(SOCKET_FD fd, KMEvent events)
 #endif
 }
 
+#if defined(IOPOLL_ITEMS_USE_DATA)
 IOPollData* EPoll::allocPollData()
 {
     {
@@ -253,9 +261,11 @@ void EPoll::processPendingPollData()
         poll_data_mgr_->processPendingPollData();
     }
 }
+#endif // defined(IOPOLL_ITEMS_USE_DATA)
 
 Result EPoll::registerFd(SOCKET_FD fd, KMEvent events, IOCallback cb, IOPollData *&data)
 {
+#if defined(IOPOLL_ITEMS_USE_DATA)
     if (fd < 0) {
         return Result::INVALID_PARAM;
     }
@@ -294,19 +304,28 @@ Result EPoll::registerFd(SOCKET_FD fd, KMEvent events, IOCallback cb, IOPollData
     KLOGI("EPoll::registerFd, fd=" << fd << ", ev=" << evt.events << ", data=" << data);
 
     return Result::OK;
+#else
+    data = nullptr;
+    return registerFd(fd, events, std::move(cb));
+#endif
 }
 
 Result EPoll::unregisterFd(SOCKET_FD fd, IOPollData *&data)
 {
+#if defined(IOPOLL_ITEMS_USE_DATA)
     KLOGI("EPoll::unregisterFd, fd=" << fd << ", data=" << data);
     epoll_ctl(epoll_fd_, EPOLL_CTL_DEL, fd, NULL);
     freePollData(data);
     data = nullptr;
     return Result::OK;
+#else
+    return unregisterFd(fd);
+#endif
 }
 
 Result EPoll::updateFd(SOCKET_FD fd, KMEvent events, IOPollData *data)
 {
+#if defined(IOPOLL_ITEMS_USE_DATA)
     if (!data) {
         return Result::INVALID_PARAM;
     }
@@ -327,6 +346,9 @@ Result EPoll::updateFd(SOCKET_FD fd, KMEvent events, IOPollData *data)
     std::lock_guard<std::recursive_mutex> g(data->rmtx);
     data->events = events;
     return Result::OK;
+#else
+    return updateFd(fd, events);
+#endif
 }
 
 Result EPoll::wait(uint32_t wait_ms)
@@ -340,7 +362,7 @@ Result EPoll::wait(uint32_t wait_ms)
         KLOGI("EPoll::wait, nfds="<<nfds<<", errno="<<errno);
     } else {
         for (int i=0; i<nfds; ++i) {
-#if 0
+#if !defined(IOPOLL_ITEMS_USE_DATA)
             SOCKET_FD fd = (SOCKET_FD)(long)events[i].data.ptr;
             auto *poll_item = poll_item_mgr_->getPollItem(fd);
             if(poll_item) {
@@ -365,7 +387,9 @@ Result EPoll::wait(uint32_t wait_ms)
 #endif
         }
     }
+#if defined(IOPOLL_ITEMS_USE_DATA)
     processPendingPollData();
+#endif
     return Result::OK;
 }
 
