@@ -124,23 +124,28 @@ Result EventLoop::Impl::unregisterFd(SOCKET_FD fd, bool close_fd)
 
 Result EventLoop::Impl::registerFd(SOCKET_FD fd, uint32_t events, IOCallback cb, IOEventData &data)
 {
+#if defined(IOPOLL_ITEMS_USE_DATA)
     if (getPollType() == PollType::EPOLL || getPollType() == PollType::KQUEUE) {
         return poll_->registerFd(fd, events, std::move(cb), data);
     }
+#endif
     data = nullptr;
     return registerFd(fd, events, std::move(cb));
 }
 
 Result EventLoop::Impl::updateFd(SOCKET_FD fd, uint32_t events, IOEventData data)
 {
+#if defined(IOPOLL_ITEMS_USE_DATA)
     if (getPollType() == PollType::EPOLL || getPollType() == PollType::KQUEUE) {
         return poll_->updateFd(fd, events, data);
     }
+#endif
     return updateFd(fd, events);
 }
 
 Result EventLoop::Impl::unregisterFd(SOCKET_FD fd, bool close_fd, IOEventData &data)
 {
+#if defined(IOPOLL_ITEMS_USE_DATA)
     if (getPollType() == PollType::EPOLL || getPollType() == PollType::KQUEUE) {
         auto ret = poll_->unregisterFd(fd, data);
         if (close_fd) {
@@ -148,6 +153,7 @@ Result EventLoop::Impl::unregisterFd(SOCKET_FD fd, bool close_fd, IOEventData &d
         }
         return ret;
     }
+#endif
     return unregisterFd(fd, close_fd);
 }
 

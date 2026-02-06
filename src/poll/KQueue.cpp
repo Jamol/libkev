@@ -54,9 +54,11 @@ public:
     Result unregisterFd(SOCKET_FD fd, IOPollData *&data) override;
 
 protected:
+#ifdef IOPOLL_ITEMS_USE_DATA
     IOPollData* allocPollData();
     void freePollData(IOPollData *data);
     void processPendingPollData();
+#endif
 
 private:
     int             kqueue_fd_ { -1 };
@@ -66,10 +68,12 @@ private:
     // on ET mode (EV_CLEAR is set), it seems EVFILT_READ won't be triggered
     // if EVFILT_READ is set after data arrived
     bool            work_on_et_mode_ { false };
-
+#ifdef IOPOLL_ITEMS_USE_DATA
     std::unique_ptr<IoPollDataManager<IOPollData>> poll_data_mgr_;
-    std::unique_ptr<IOPollItemManager<IOPollItem>> poll_item_mgr_;
     std::mutex      poll_data_mutex_;
+#else
+    std::unique_ptr<IOPollItemManager<IOPollItem>> poll_item_mgr_;
+#endif
 };
 
 KQueue::KQueue()
@@ -83,10 +87,12 @@ KQueue::~KQueue()
         ::close(kqueue_fd_);
         kqueue_fd_ = INVALID_FD;
     }
+#ifdef IOPOLL_ITEMS_USE_DATA
     if (notifier_data_) {
         freePollData(notifier_data_);
         notifier_data_ = nullptr;
     }
+#endif
 }
 
 bool KQueue::init()
@@ -124,7 +130,7 @@ bool KQueue::init()
 
 Result KQueue::registerFd(SOCKET_FD fd, KMEvent events, IOCallback cb)
 {
-#if 0
+#if !defined(IOPOLL_ITEMS_USE_DATA)
     if (fd < 0) {
         return Result::INVALID_PARAM;
     }
@@ -152,10 +158,10 @@ Result KQueue::registerFd(SOCKET_FD fd, KMEvent events, IOCallback cb)
 
 Result KQueue::unregisterFd(SOCKET_FD fd)
 {
-#if 0
+#if !defined(IOPOLL_ITEMS_USE_DATA)
     auto sz = poll_item_mgr_->getPollItemSize();
     KLOGI("KQueue::unregisterFd, fd="<<fd<<", sz="<<sz);
-    auto *poll_item = getPollItem(fd);
+    auto *poll_item = poll_item_mgr_->getPollItem(fd);
     if (!poll_item) {
         KLOGE("KQueue::unregisterFd failed, fd=" << fd);
         return Result::INVALID_PARAM;
@@ -180,7 +186,7 @@ Result KQueue::unregisterFd(SOCKET_FD fd)
 
 Result KQueue::updateFd(SOCKET_FD fd, KMEvent events)
 {
-#if 0
+#if !defined(IOPOLL_ITEMS_USE_DATA)
     auto *poll_item = poll_item_mgr_->getPollItem(fd);
     if (!poll_item || INVALID_FD == poll_item->fd) {
         return Result::INVALID_PARAM;
@@ -225,6 +231,7 @@ Result KQueue::updateFd(SOCKET_FD fd, KMEvent events)
 #endif
 }
 
+#if defined(IOPOLL_ITEMS_USE_DATA)
 IOPollData* KQueue::allocPollData()
 {
     {
@@ -263,9 +270,11 @@ void KQueue::processPendingPollData()
         poll_data_mgr_->processPendingPollData();
     }
 }
+#endif // defined(IOPOLL_ITEMS_USE_DATA)
 
 Result KQueue::registerFd(SOCKET_FD fd, KMEvent events, IOCallback cb, IOPollData *&data)
 {
+#if defined(IOPOLL_ITEMS_USE_DATA)
     if (fd < 0) {
         return Result::INVALID_PARAM;
     }
@@ -297,10 +306,15 @@ Result KQueue::registerFd(SOCKET_FD fd, KMEvent events, IOCallback cb, IOPollDat
     }
     KLOGI("KQueue::registerFd, fd="<<fd<<", ev="<<events<<", ret="<<(int)ret << ", data=" << data);
     return ret;
+#else
+    data = nullptr;
+    return registerFd(fd, events, std::move(cb));
+#endif
 }
 
 Result KQueue::unregisterFd(SOCKET_FD fd, IOPollData *&data)
 {
+#if defined(IOPOLL_ITEMS_USE_DATA)
     KLOGI("KQueue::unregisterFd, fd="<<fd<<", data="<<data);
     if (!data) {
         return Result::INVALID_PARAM;
@@ -319,10 +333,14 @@ Result KQueue::unregisterFd(SOCKET_FD fd, IOPollData *&data)
     freePollData(data);
     data = nullptr;
     return Result::OK;
+#else
+    return unregisterFd(fd);
+#endif
 }
 
 Result KQueue::updateFd(SOCKET_FD fd, KMEvent events, IOPollData *data)
 {
+#if defined(IOPOLL_ITEMS_USE_DATA)
     if (!data) {
         return Result::INVALID_PARAM;
     }
@@ -377,6 +395,9 @@ Result KQueue::updateFd(SOCKET_FD fd, KMEvent events, IOPollData *data)
     }
     //KLOGI("KQueue::updateFd, fd="<<fd<<", ev="<<events);
     return Result::OK;
+#else
+    return updateFd(fd, events);
+#endif
 }
 
 Result KQueue::wait(uint32_t wait_ms)
@@ -394,12 +415,12 @@ Result KQueue::wait(uint32_t wait_ms)
         }
         //KLOGI("KQueue::wait, nevents="<<nevents<<", errno="<<errno);
     } else {
-#if 0
+#if !defined(IOPOLL_ITEMS_USE_DATA)
         std::pair<SOCKET_FD, size_t> fds[MAX_EVENT_NUM];
         int nfds = 0;
         for (int i=0; i<nevents; ++i) {
             SOCKET_FD fd = (SOCKET_FD)kevents[i].ident;
-            auto *poll_item = getPollItem(fd);
+            auto *poll_item = poll_item_mgr_->getPollItem(fd);
             if(poll_item) {
                 KMEvent revents = 0;
                 size_t io_size = 0;
@@ -489,6 +510,9 @@ Result KQueue::wait(uint32_t wait_ms)
         }
 #endif
     }
+#if defined(IOPOLL_ITEMS_USE_DATA)
+    processPendingPollData();
+#endif
     return Result::OK;
 }
 
