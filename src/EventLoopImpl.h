@@ -77,8 +77,8 @@ public:
     void operator() () override
     {
         auto expected = State::ACTIVE;
-        std::lock_guard<std::mutex> g(mlock);
         if (state_.compare_exchange_strong(expected, State::RUNNING)) {
+            std::lock_guard<std::mutex> g(mlock);
             TaskSlot::operator()();
             state_.exchange(State::INACTIVE);
         }
@@ -198,6 +198,7 @@ public:
     {
         static_assert(!std::is_same<decltype(f()), void>{}, "is void");
         if (inSameThread()) {
+            err = Result::OK;
             return f();
         }
         using ReturnType = decltype(f());
@@ -212,6 +213,7 @@ public:
     {
         static_assert(std::is_same<decltype(f()), void>{}, "not void");
         if (inSameThread()) {
+            err = Result::OK;
             return f();
         }
         err = sync(std::forward<F>(f), token, debug_str);

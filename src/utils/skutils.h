@@ -91,7 +91,7 @@ public:
     {
         ssize_t ret = 0;
         do {
-            ret = ::sendto(fd, SK_CONST_BUF_LEN, 0, addr, addr_len);
+            ret = ::sendto(fd, SK_CONST_BUF_LEN, flags, addr, addr_len);
         } while(ret < 0 && getLastError() == EINTR);
         return ret;
     }
@@ -101,7 +101,7 @@ public:
     {
         ssize_t ret = 0;
         do {
-            ret = ::recvfrom(fd, SK_BUF_LEN, 0, addr, addr_len);
+            ret = ::recvfrom(fd, SK_BUF_LEN, flags, addr, addr_len);
         } while(ret < 0 && getLastError() == EINTR);
         return ret;
     }
@@ -112,7 +112,7 @@ public:
         ssize_t ret = 0;
 #ifdef KUMA_OS_WIN
         DWORD bytes_sent = 0;
-        ret = ::WSASendTo(fd, (LPWSABUF)iovs, count, &bytes_sent, 0,
+        ret = ::WSASendTo(fd, (LPWSABUF)iovs, count, &bytes_sent, flags,
                           addr, addr_len, NULL, NULL);
         if(0 == ret) ret = (ssize_t)bytes_sent;
 #else // KUMA_OS_WIN
@@ -125,7 +125,7 @@ public:
         send_msg.msg_controllen = 0;
         send_msg.msg_flags = 0;
         do {
-            ret = ::sendmsg(fd, &send_msg, 0);
+            ret = ::sendmsg(fd, &send_msg, flags);
         } while(ret < 0 && getLastError() == EINTR);
 #endif // KUMA_OS_WIN
         return ret;
@@ -153,7 +153,7 @@ public:
         recv_msg.msg_controllen = sizeof(msg_ctrl);
         recv_msg.msg_flags = 0;
         do {
-            ret = ::recvmsg(fd, &recv_msg, 0);
+            ret = ::recvmsg(fd, &recv_msg, flags);
         } while(ret < 0 && getLastError() == EINTR);
 #endif // KUMA_OS_WIN
         return ret;
