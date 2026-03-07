@@ -32,8 +32,14 @@ struct lambda_wrapper<Fn, std::enable_if_t< !std::is_copy_constructible<Fn>{} &&
     lambda_wrapper(lambda_wrapper&&) = default;
     lambda_wrapper& operator=(lambda_wrapper&&) = default;
 
-    lambda_wrapper(const lambda_wrapper& rhs) : fn(const_cast<Fn&&>(rhs.fn)) { throw 0; }
-    lambda_wrapper& operator=(const lambda_wrapper&) { throw 0; }
+    lambda_wrapper(const lambda_wrapper& rhs) : fn(const_cast<Fn&&>(rhs.fn))
+    {
+        throw std::logic_error("lambda_wrapper: copy ctor should never be called");
+    }
+    lambda_wrapper& operator=(const lambda_wrapper&)
+    {
+        throw std::logic_error("lambda_wrapper: copy assignment should never be called");
+    }
 
     template<typename... Args>
     auto operator()(Args&&... args) { return fn(std::forward<Args>(args)...); }

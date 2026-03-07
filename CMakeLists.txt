@@ -17,8 +17,8 @@ else()
   set(PROCESSOR_ARCH "x86")
 endif()
 
-include_directories(${PROJ_ROOT_DIR}/include)
-include_directories(${PROJ_ROOT_DIR}/src)
+#include_directories(${PROJ_ROOT_DIR}/include)
+#include_directories(${PROJ_ROOT_DIR}/src)
 
 file(GLOB SOURCE_FILES
   ${PROJ_ROOT_DIR}/src/*.cpp
@@ -49,36 +49,12 @@ elseif (CMAKE_SYSTEM_NAME MATCHES "OHOS")
   set(SOURCE_FILES ${SOURCE_FILES} ${OHOS_SOURCES})
 endif ()
 
-if (CMAKE_SYSTEM_NAME MATCHES "Windows")
-  #add_definitions(-DKEV_EXPORTS)
-  add_definitions(-DNOMINMAX -DWIN32_LEAN_AND_MEAN)
-  add_definitions(-D_WINDOWS -D_LIB)
-  add_definitions(-D_UNICODE -DUNICODE)
-  if(CMAKE_SIZEOF_VOID_P EQUAL 8)
-  else()
-    add_definitions(-DWIN32)
-  endif()
-elseif (CMAKE_SYSTEM_NAME MATCHES "Darwin")
-  add_definitions(-DKEV_HAS_RUNLOOP)
-elseif (CMAKE_SYSTEM_NAME MATCHES "Android")
-  add_definitions(-DANDROID -DLINUX)
-  if (KEV_HAS_IOURING)
-    add_definitions(-DKEV_HAS_IOURING)
-    message(STATUS "android has io_uring")
-  endif()
-elseif (CMAKE_SYSTEM_NAME MATCHES "Linux")
-  add_definitions(-DLINUX)
-  
+if (CMAKE_SYSTEM_NAME MATCHES "Linux")
   #execute_process(COMMAND uname -r OUTPUT_VARIABLE LINUX_KERNEL_VERSION)
   #message(STATUS "kernel version: ${LINUX_KERNEL_VERSION}")
 
   cmake_host_system_information(RESULT OS_RELEASE_VERSION QUERY OS_RELEASE)
   message(STATUS "OS release version: ${OS_RELEASE_VERSION}")
-  
-  if (KEV_HAS_IOURING)
-    add_definitions(-DKEV_HAS_IOURING)
-    message(STATUS "linux has io_uring")
-  endif()
 endif ()
 
 if (CMAKE_SYSTEM_NAME MATCHES "Windows")
@@ -97,7 +73,7 @@ if (CMAKE_SYSTEM_NAME MATCHES "Windows")
   endif ()
   #message(STATUS "++++++++ flags2=${CMAKE_CXX_FLAGS_RELWITHDEBINFO}")
 elseif (CMAKE_SYSTEM_NAME MATCHES "Darwin")
-  set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fobjc-arc -std=c++14 -stdlib=libc++")
+  set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fobjc-arc -stdlib=libc++")
   set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fvisibility-inlines-hidden -Wnon-virtual-dtor -Woverloaded-virtual -fPIC")
   set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fobjc-arc")
   if ((CMAKE_BUILD_TYPE STREQUAL "Debug") OR (CMAKE_BUILD_TYPE STREQUAL "debug"))
@@ -112,12 +88,12 @@ elseif (CMAKE_SYSTEM_NAME MATCHES "Darwin")
       set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fembed-bitcode")
   endif ()
 elseif (CMAKE_SYSTEM_NAME MATCHES "Android")
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14 -fvisibility-inlines-hidden")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fvisibility-inlines-hidden")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wnon-virtual-dtor -Woverloaded-virtual -fexceptions")
 elseif (CMAKE_SYSTEM_NAME MATCHES "OHOS")
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14 -fPIC -Wno-unused-command-line-argument")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC -Wno-unused-command-line-argument")
 elseif (CMAKE_SYSTEM_NAME MATCHES "Linux")
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14 -fPIC -m64 -march=x86-64")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC -m64 -march=x86-64")
 endif ()
 
 # ios target definition
@@ -157,6 +133,37 @@ if (KEV_ENABLE_ASAN)
 endif()
 
 add_library(kev STATIC ${SOURCE_FILES})
+
+target_compile_features(kev PRIVATE cxx_std_14)
+set_target_properties(kev PROPERTIES CXX_EXTENSIONS OFF)
+
+target_include_directories(kev
+  PUBLIC  ${PROJ_ROOT_DIR}/include
+  PRIVATE ${PROJ_ROOT_DIR}/src
+)
+
+if (CMAKE_SYSTEM_NAME MATCHES "Windows")
+  target_compile_definitions(kev PRIVATE
+    NOMINMAX WIN32_LEAN_AND_MEAN _WINDOWS _LIB _UNICODE UNICODE
+    $<$<NOT:$<BOOL:${ARCH_64}>>:WIN32>
+  )
+elseif (CMAKE_SYSTEM_NAME MATCHES "Darwin")
+  target_compile_definitions(kev PRIVATE KEV_HAS_RUNLOOP)
+elseif (CMAKE_SYSTEM_NAME MATCHES "Android")
+  target_compile_definitions(kev PRIVATE ANDROID LINUX)
+  if (KEV_HAS_IOURING)
+    target_compile_definitions(kev PRIVATE KEV_HAS_IOURING)
+    message(STATUS "android has io_uring")
+  endif()
+elseif (CMAKE_SYSTEM_NAME MATCHES "OHOS")
+  target_compile_definitions(kev PRIVATE OHOS LINUX)
+elseif (CMAKE_SYSTEM_NAME MATCHES "Linux")
+  target_compile_definitions(kev PRIVATE LINUX)
+  if (KEV_HAS_IOURING)
+    target_compile_definitions(kev PRIVATE KEV_HAS_IOURING)
+    message(STATUS "linux has io_uring")
+  endif()
+endif ()
 
 if (CMAKE_SYSTEM_NAME MATCHES "Windows")
   target_compile_options(kev PRIVATE /W3 /WX)

@@ -88,7 +88,7 @@ public:
     bool ready() override {
         return fds_[READ_FD] != INVALID_FD && fds_[WRITE_FD] != INVALID_FD;
     }
-    void notify() {
+    void notify() override {
         char c = 1;
         SKUtils::send(fds_[WRITE_FD], &c, sizeof(c), 0);
     }

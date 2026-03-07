@@ -450,7 +450,7 @@ Result KQueue::wait(uint32_t wait_ms)
         }
         for (int i=0; i<nfds; ++i) {
             SOCKET_FD fd = fds[i].first;
-            auto *poll_item = getPollItem(fd);
+            auto *poll_item = poll_item_mgr_->getPollItem(fd);
             if (poll_item) {
                 uint32_t revents = poll_item->revents;
                 poll_item->revents = 0;

@@ -159,6 +159,7 @@ public:
     {
         static_assert(!std::is_void<decltype(f())>{}, "is void");
         if (inSameThread()) {
+            err = Result::OK;
             return f();
         }
         using ReturnType = decltype(f());
@@ -173,6 +174,7 @@ public:
     {
         static_assert(std::is_void<decltype(f())>{}, "not void");
         if (inSameThread()) {
+            err = Result::OK;
             return f();
         }
         err = sync(std::forward<F>(f), token, debug_str);
