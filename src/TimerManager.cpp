@@ -21,9 +21,11 @@
 
 #include "TimerManager.h"
 #include "EventLoopImpl.h"
+#include "utils/kmtrace.h"
 
 #include <string.h>
 #include <vector>
+#include <exception>
 
 KEV_NS_USING
 
@@ -93,6 +95,9 @@ bool TimerManager::scheduleTimer(TimerNode *timer_node, uint32_t delay_ms, Timer
 {
     TICK_COUNT_TYPE now_tick = get_tick_count_ms();
     bool ret = false;
+    // the callback is released after the lock is released, since its destruction
+    // may destroy the timer node itself (the callback may own it)
+    TimerCallback dead_cb;
     {
         std::unique_lock<std::mutex> ul(mutex_);
         if (shutdown_) {
@@ -123,12 +128,18 @@ bool TimerManager::scheduleTimer(TimerNode *timer_node, uint32_t delay_ms, Timer
         timer_node->cb_ = std::move(cb);
         
         ret = addTimer(timer_node, FROM_SCHEDULE);
-        long diff = long(now_tick - last_tick_);
-        if(last_remain_ms_ == -1 || (diff >= 0 && delay_ms < last_remain_ms_ - diff)) {
-            // need update poll wait time
-            if (!inSameThread()) {
-                loop_->wakeup();
+        if (ret) {
+            long diff = long(now_tick - last_tick_);
+            if(last_remain_ms_ == -1 || (diff >= 0 && delay_ms < last_remain_ms_ - diff)) {
+                // need update poll wait time
+                if (!inSameThread()) {
+                    loop_->wakeup();
+                }
             }
+        } else {
+            // scheduling failed, don't leave the callback in the node: the callback may
+            // hold a reference back to the node, which would form a reference cycle
+            dead_cb = std::move(timer_node->cb_);
         }
     }
     return ret;
@@ -141,18 +152,18 @@ void TimerManager::cancelTimer(TimerNode *timer_node)
     }
     timer_node->cancelled_ = true;
 
-    TimerCallback timer_cb; // hold timer cb temporarily
+    TimerCallback dead_cb; // hold timer cb temporarily
     {
         std::unique_lock<std::mutex> ul(mutex_);
         handleRunningTimerCancellationLocked(timer_node, ul);
         handlePendingTimerCancellationLocked(timer_node);
-        timer_cb = timer_node->cancel();
+        dead_cb = timer_node->cancel();
     }
 }
 
 void TimerManager::clear()
 {
-    std::vector<TimerCallback> timer_cbs; // hold timer cb temporarily
+    std::vector<TimerCallback> dead_cbs; // hold timer cb temporarily
     std::unique_lock<std::mutex> ul(mutex_);
     for (int i=0; i<TV_COUNT && timer_count_ > 0; ++i)
     {
@@ -170,7 +181,7 @@ void TimerManager::clear()
                     if(isTimerPending(cancelling_node_)) {
                         removeTimer(cancelling_node_);
                     }
-                    timer_cbs.emplace_back(cancelling_node_->cancel());
+                    dead_cbs.emplace_back(cancelling_node_->cancel());
                     cancelling_node_ = nullptr;
                 }
             }
@@ -267,18 +278,19 @@ void TimerManager::set_tv0_bitmap(int idx)
 {
     unsigned char a = (unsigned char)(idx/BITMAP_BITS_PER_ELEMENT);
     unsigned char b = (unsigned char)(idx%BITMAP_BITS_PER_ELEMENT);
-    tv0_bitmap_[a] |= 1 << b;
+    tv0_bitmap_[a] |= 1u << b;
 }
 
 void TimerManager::clear_tv0_bitmap(int idx)
 {
     unsigned char a = (unsigned char)(idx/BITMAP_BITS_PER_ELEMENT);
     unsigned char b = (unsigned char)(idx%BITMAP_BITS_PER_ELEMENT);
-    tv0_bitmap_[a] &= ~(1 << b);
+    tv0_bitmap_[a] &= ~(1u << b);
 }
 
 int TimerManager::find_first_set_in_bitmap(int idx)
 {
+    const int bits_per_elem = static_cast<int>(BITMAP_BITS_PER_ELEMENT);
     unsigned char a = (unsigned char)(idx/BITMAP_BITS_PER_ELEMENT);
     unsigned char b = (unsigned char)(idx%BITMAP_BITS_PER_ELEMENT);
     int pos = find_first_set(tv0_bitmap_[a] >> b);
@@ -291,16 +303,16 @@ int TimerManager::find_first_set_in_bitmap(int idx)
             if(i < a) {
                 i += 8;
             }
-            pos += (i - a - 1) * 32;
-            pos += 32 - b;
+            pos += (i - a - 1) * bits_per_elem;
+            pos += bits_per_elem - b;
             break;
         }
     }
     if(-1 == pos && b > 0) {
-        unsigned int bits = (tv0_bitmap_[a] << (32 - b)) >> (32 - b);
+        unsigned int bits = (tv0_bitmap_[a] << (bits_per_elem - b)) >> (bits_per_elem - b);
         pos = find_first_set(bits);
         if(pos >= 0) {
-            pos += 256 - b;
+            pos += TIMER_VECTOR_SIZE - b;
         }
     }
     return pos;
@@ -410,10 +422,10 @@ int TimerManager::checkExpire(unsigned long* remain_ms)
                 *remain_ms = last_remain_ms_;
             } else {
                 // calc remain time in ms
-                mutex_.lock();
+                std::unique_lock<std::mutex> ul(mutex_);
                 int pos = find_first_set_in_bitmap(now_tick & TIMER_VECTOR_MASK);
-                mutex_.unlock();
-                *remain_ms = -1==pos?256:pos;
+                ul.unlock();
+                *remain_ms = -1==pos?TIMER_VECTOR_SIZE:pos;
                 last_remain_ms_ = *remain_ms;
             }
         }
@@ -426,7 +438,7 @@ int TimerManager::checkExpire(unsigned long* remain_ms)
     TimerNode tmp_head;
     list_init_head(&tmp_head);
     std::vector<TimerCallback> timer_cbs; // hold timer cb temporarily
-    mutex_.lock();
+    std::unique_lock<std::mutex> ul(mutex_);
     while(JIFFIES_COMPARE(cur_jiffies, next_jiffies) >= 0)
     {
         int idx = next_jiffies & TIMER_VECTOR_MASK;
@@ -464,29 +476,42 @@ int TimerManager::checkExpire(unsigned long* remain_ms)
         --timer_count_;
         TimerCallback timer_cb;
         timer_cb.swap(reschedule_node_->cb_);
-        mutex_.unlock(); // sync nodes in tmp_list with cancel_timer.
+        ul.unlock(); // sync nodes in tmp_list with cancel_timer.
 
-        running_mutex_.lock();
-        if(running_node_) {
-            //(*running_node_)();
-            if (!running_node_->cancelled_ && timer_cb) {
-                timer_cb();
+        {
+            std::lock_guard<std::mutex> rg(running_mutex_);
+            if (running_node_) {
+                //(*running_node_)();
+                if (!running_node_->cancelled_ && timer_cb) {
+                    try {
+                        timer_cb();
+                    } catch (const std::exception &e) {
+                        KLOGE("checkExpire, timer callback threw an exception: " << e.what());
+                    } catch (...) {
+                        KLOGE("checkExpire, timer callback threw an unknown exception");
+                    }
+                }
+                running_node_ = nullptr;
+                ++count;
             }
-            running_node_ = nullptr;
-            ++count;
         }
-        running_mutex_.unlock();
         
-        mutex_.lock();
+        ul.lock();
         if(reschedule_node_) {
             if (reschedule_node_->mode_ == Timer::Mode::REPEATING && !reschedule_node_->cancelled_) {
-                auto expected_tick = reschedule_node_->start_tick_ + reschedule_node_->delay_ms_;
-                int64_t diff_ms = now_tick - expected_tick;
-                if (diff_ms >= int64_t(reschedule_node_->delay_ms_)) {
-                    int64_t rounds = diff_ms / reschedule_node_->delay_ms_;
-                    expected_tick += reschedule_node_->delay_ms_ * rounds;
+                const auto delay_ms = reschedule_node_->delay_ms_;
+                if (delay_ms > 0) {
+                    auto expected_tick = reschedule_node_->start_tick_ + delay_ms;
+                    int64_t diff_ms = static_cast<int64_t>(now_tick - expected_tick);
+                    if (diff_ms >= static_cast<int64_t>(delay_ms)) {
+                        // the loop was blocked for a while, skip the missed rounds
+                        int64_t rounds = diff_ms / static_cast<int64_t>(delay_ms);
+                        expected_tick += delay_ms * static_cast<TICK_COUNT_TYPE>(rounds);
+                    }
+                    reschedule_node_->start_tick_ = expected_tick;
+                } else {
+                    reschedule_node_->start_tick_ = now_tick;
                 }
-                reschedule_node_->start_tick_ = expected_tick;
                 timer_cb.swap(reschedule_node_->cb_);
                 addTimer(reschedule_node_, FROM_RESCHEDULE);
             } else {
@@ -506,10 +531,10 @@ int TimerManager::checkExpire(unsigned long* remain_ms)
     if(remain_ms) {
         // calc remain time in ms
         int pos = find_first_set_in_bitmap(cur_jiffies & TIMER_VECTOR_MASK);
-        *remain_ms = -1==pos?256:pos;
+        *remain_ms = -1==pos?TIMER_VECTOR_SIZE:pos;
     }
 
-    mutex_.unlock();
+    ul.unlock();
     if(remain_ms) { // revise the remain time
         now_tick = get_tick_count_ms();
         delta_tick = calc_time_elapse_delta_ms(now_tick, last_tick);

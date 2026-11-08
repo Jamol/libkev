@@ -344,7 +344,7 @@ int km_parse_address(const char *addr,
                      size_t host_len, 
                      unsigned short *port)
 {
-    if(!addr || !host)
+    if(!addr || !host || 0 == host_len)
         return -1;
     
     const char* tmp = strstr(addr, "://");
@@ -403,13 +403,18 @@ int km_parse_address(const char *addr,
 
 int set_nonblocking(SOCKET_FD fd) {
 #ifdef KUMA_OS_WIN
-    int mode = 1;
-    ::ioctlsocket(fd, FIONBIO, (ULONG*)&mode);
+    u_long mode = 1;
+    return ::ioctlsocket(fd, FIONBIO, &mode) == 0 ? 0 : -1;
 #else
     int flag = ::fcntl(fd, F_GETFL, 0);
-    ::fcntl(fd, F_SETFL, flag | O_NONBLOCK | O_ASYNC);
-#endif
+    if (flag < 0) {
+        return -1;
+    }
+    if (::fcntl(fd, F_SETFL, flag | O_NONBLOCK) < 0) {
+        return -1;
+    }
     return 0;
+#endif
 }
 
 int set_tcpnodelay(SOCKET_FD fd) {
@@ -612,12 +617,12 @@ bool remove_token(std::string &tokens, const std::string &token, char delim)
 size_t random_bytes(void *buf, size_t len)
 {
     using rand_type = unsigned int;
-    using bytes_randomizer = std::independent_bits_engine<std::default_random_engine, sizeof(rand_type)*8, rand_type>;
+    using bytes_randomizer = std::independent_bits_engine<std::mt19937, sizeof(rand_type)*8, rand_type>;
     
+    thread_local bytes_randomizer br(std::random_device{}());
     const auto sl = len / sizeof(rand_type);
     const auto rl = len - sl * sizeof(rand_type);
     auto *p = static_cast<rand_type*>(buf);
-    bytes_randomizer br(std::random_device{}());
     if (sl > 0) {
         std::generate(p, p + sl, std::ref(br));
     }

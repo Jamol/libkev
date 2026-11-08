@@ -131,11 +131,18 @@ Result VPoll::registerFd(SOCKET_FD fd, KMEvent events, IOCallback cb)
         KLOGE("VPoll::registerFd no poll item, fd=" << fd << ", sz=" << getPollItemSize());
         return Result::BUFFER_TOO_SMALL;
     }
-    int idx = -1;
+    int idx = poll_item->idx;
     if (INVALID_FD == poll_item->fd || -1 == poll_item->idx) { // new
         pollfd pfd{fd, (short)get_events(events), 0};
         poll_fds_.emplace_back(pfd);
         poll_item->idx = static_cast<int>(poll_fds_.size() - 1);
+        idx = poll_item->idx;
+    } else if (idx >= 0 && idx < static_cast<int>(poll_fds_.size())) {
+        // re-registering an existing fd: the poll mask of the pending pollfd must be
+        // updated as well, otherwise poll() keeps waiting for the old events
+        poll_fds_[idx].fd = fd;
+        poll_fds_[idx].events = (short)get_events(events);
+        poll_fds_[idx].revents = 0;
     }
     poll_item->fd = fd;
     poll_item->events = events;
@@ -198,10 +205,11 @@ Result VPoll::updateFd(SOCKET_FD fd, KMEvent events)
 
 Result VPoll::wait(uint32_t wait_ms)
 {
+    pollfd *pfds = !poll_fds_.empty() ? poll_fds_.data() : nullptr;
 #ifdef KUMA_OS_WIN
-    int num_revts = WSAPoll(&poll_fds_[0], static_cast<ULONG>(poll_fds_.size()), wait_ms);
+    int num_revts = WSAPoll(pfds, static_cast<ULONG>(poll_fds_.size()), wait_ms);
 #else
-    int num_revts = poll(&poll_fds_[0], static_cast<nfds_t>(poll_fds_.size()), wait_ms);
+    int num_revts = poll(pfds, static_cast<nfds_t>(poll_fds_.size()), wait_ms);
 #endif
     if (-1 == num_revts) {
         if(EINTR == errno) {
