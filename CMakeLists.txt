@@ -93,7 +93,12 @@ elseif (CMAKE_SYSTEM_NAME MATCHES "Android")
 elseif (CMAKE_SYSTEM_NAME MATCHES "OHOS")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC -Wno-unused-command-line-argument")
 elseif (CMAKE_SYSTEM_NAME MATCHES "Linux")
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC -m64 -march=x86-64")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC")
+  # -m64/-march=x86-64 are only valid for x86_64 targets. Adding them
+  # unconditionally breaks cross compilation for e.g. aarch64.
+  if (CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|amd64|AMD64|x86-64)$")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -m64 -march=x86-64")
+  endif ()
 endif ()
 
 # ios target definition

@@ -78,6 +78,12 @@
 #define IOPOLL_ITEMS_USE_DATA
 #endif
 
+#if defined(KUMA_OS_WIN)
+# define IS_FD_INVALID(fd) (fd == INVALID_FD)
+#else
+# define IS_FD_INVALID(fd) (fd == INVALID_FD || fd < 0)
+#endif
+
 KEV_NS_BEGIN
 
 class IOPoll
@@ -138,6 +144,9 @@ public:
 #ifdef IOPOLL_ITEMS_USE_MAP
     using PollItems = std::unordered_map<SOCKET_FD, ItemType>;
     ItemType* getPollItem(SOCKET_FD fd, bool create_if_not_exist = false) {
+        if (IS_FD_INVALID(fd)) {
+            return nullptr;
+        }
         auto it = poll_items_.find(fd);
         if (it == poll_items_.end()) {
             if (!create_if_not_exist) {
@@ -157,37 +166,55 @@ public:
 #else
     using PollItems = std::vector<ItemType>;
     bool resizePollItem(SOCKET_FD fd) {
-        auto count = poll_items_.size();
-        if (fd >= count) {
-            if(fd > count + 1024) {
-                poll_items_.resize(fd+1);
-            } else {
-                poll_items_.resize(count + 1024);
-            }
-            if (fd >= static_cast<SOCKET_FD>(poll_items_.size())) {
-                return false;
-            }
+        if (IS_FD_INVALID(fd)) {
+            return false;
+        }
+        const size_t idx = static_cast<size_t>(fd);
+        if (idx < poll_items_.size()) {
+            return true;
+        }
+        size_t new_size = poll_items_.size() + 1024;
+        if (new_size <= idx) {
+            new_size = idx + 1;
+        }
+        try {
+            poll_items_.resize(new_size);
+        } catch (const std::exception &e) {
+            KTLOGE("IOPoll::resizePollItem, resize failed, fd=" << fd << ", err=" << e.what());
+            return false;
+        }
+        if (idx >= poll_items_.size()) {
+            return false;
         }
         return true;
     }
     ItemType* getPollItem(SOCKET_FD fd, bool create_if_not_exist = false) {
-        if (create_if_not_exist) {
-            resizePollItem(fd);
-        }
-        if (fd < 0 || fd >= static_cast<SOCKET_FD>(poll_items_.size())) {
+        if (create_if_not_exist && !resizePollItem(fd)) {
             return nullptr;
         }
-        return &poll_items_[fd];
+        if (IS_FD_INVALID(fd)) {
+            return nullptr;
+        }
+        const size_t idx = static_cast<size_t>(fd);
+        if (idx >= poll_items_.size()) {
+            return nullptr;
+        }
+        return &poll_items_[idx];
     }
     void clearPollItem(SOCKET_FD fd) {
-        auto max_fd = static_cast<SOCKET_FD>(poll_items_.size() - 1);
-        if (fd < 0 || fd > max_fd) {
-            KTLOGW("IOPoll::clearPollItem, failed, fd=" << fd << ", max_fd=" << max_fd);
+        if (poll_items_.empty()) {
             return;
         }
-        if(fd < max_fd) {
-            poll_items_[fd].reset();
-        } else if (fd == max_fd) {
+        const size_t idx = static_cast<size_t>(fd);
+        const size_t max_idx = poll_items_.size() - 1;
+        if (idx > max_idx) {
+            KTLOGW("IOPoll::clearPollItem, failed, fd=" << fd << ", max_fd=" << max_idx);
+            return;
+        }
+        if (idx < max_idx) {
+            poll_items_[idx].reset();
+        } else {
+            // the last one
             poll_items_.pop_back();
         }
     }

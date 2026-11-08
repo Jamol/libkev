@@ -322,7 +322,7 @@ Result IocpPoll::wait(uint32_t wait_ms)
         SOCKET_FD fd = (SOCKET_FD)key;
         auto *poll_item = getPollItem(fd);
         if (poll_item) {
-            IOCallback &cb = poll_item->cb;
+            auto &cb = poll_item->cb;
             size_t io_size = bytes;
             if (cb) cb(fd, 0, pOverlapped, io_size);
         }

@@ -26,6 +26,7 @@
 #include "utils/skutils.h"
 #include <thread>
 #include <condition_variable>
+#include <exception>
 
 KEV_NS_BEGIN
 
@@ -240,7 +241,15 @@ void EventLoop::Impl::processTasks()
     }
 
     for (auto &ts : tq) {
-        (*ts)();
+        // an exception thrown from one task must not break the loop
+        // nor discard the tasks that are still queued behind it
+        try {
+            (*ts)();
+        } catch (const std::exception &e) {
+            KLOGE("processTasks, task threw an exception: " << e.what());
+        } catch (...) {
+            KLOGE("processTasks, task threw an unknown exception");
+        }
     }
 }
 
@@ -326,10 +335,15 @@ Result EventLoop::Impl::appendDelayedTask(uint32_t delay_ms, Task task, EventLoo
     }
     // NOTE: ptr is stored in TimerCallback, so no queue is needed for DelayedTaskSlot.
     // ptr will be released after timer cancelled or executed, or TimerManager destructed
-    ptr->timer.schedule(delay_ms, Timer::Mode::ONE_SHOT, [ptr] () mutable {
+    if (!ptr->timer.schedule(delay_ms, Timer::Mode::ONE_SHOT, [ptr] () mutable {
         // this closure will be released when user reset the token 
         (*std::exchange(ptr, nullptr))();
-    });
+    })) {
+        // the task is dropped, don't report success to the caller
+        KLOGW("appendDelayedTask, failed to schedule the timer, delay=" << delay_ms);
+        ptr->clearTask();
+        return Result::INVALID_STATE;
+    }
     return Result::OK;
 }
 

@@ -79,8 +79,13 @@ public:
         auto expected = State::ACTIVE;
         if (state_.compare_exchange_strong(expected, State::RUNNING)) {
             std::lock_guard<std::mutex> g(mlock);
+            // make sure the state is reset even if the task throws an exception
+            struct StateGuard
+            {
+                std::atomic<State> &state;
+                ~StateGuard() { state.exchange(State::INACTIVE); }
+            } state_guard{ state_ };
             TaskSlot::operator()();
-            state_.exchange(State::INACTIVE);
         }
     }
     void cancel(bool inLoopThread)
@@ -202,7 +207,7 @@ public:
             return f();
         }
         using ReturnType = decltype(f());
-        ReturnType retval;
+        ReturnType retval{};
         auto task_sync = [&] { retval = f(); };
         err = sync(std::move(task_sync), token, debug_str);
         return retval;
